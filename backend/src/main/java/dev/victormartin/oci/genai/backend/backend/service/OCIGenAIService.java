@@ -1,18 +1,31 @@
 package dev.victormartin.oci.genai.backend.backend.service;
 
-import com.oracle.bmc.generativeaiinference.model.*;
-import com.oracle.bmc.generativeaiinference.model.Message;
-import com.oracle.bmc.generativeaiinference.requests.ChatRequest;
-import com.oracle.bmc.generativeaiinference.responses.ChatResponse;
-import dev.victormartin.oci.genai.backend.backend.dao.GenAiModel;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.oracle.bmc.generativeaiinference.model.BaseChatResponse;
+import com.oracle.bmc.generativeaiinference.model.ChatChoice;
+import com.oracle.bmc.generativeaiinference.model.ChatContent;
+import com.oracle.bmc.generativeaiinference.model.ChatDetails;
+import com.oracle.bmc.generativeaiinference.model.ChatResult;
+import com.oracle.bmc.generativeaiinference.model.CohereChatRequest;
+import com.oracle.bmc.generativeaiinference.model.CohereChatResponse;
+import com.oracle.bmc.generativeaiinference.model.GenericChatRequest;
+import com.oracle.bmc.generativeaiinference.model.GenericChatResponse;
+import com.oracle.bmc.generativeaiinference.model.Message;
+import com.oracle.bmc.generativeaiinference.model.OnDemandServingMode;
+import com.oracle.bmc.generativeaiinference.model.TextContent;
+import com.oracle.bmc.generativeaiinference.model.UserMessage;
+import com.oracle.bmc.generativeaiinference.requests.ChatRequest;
+import com.oracle.bmc.generativeaiinference.responses.ChatResponse;
+
+import dev.victormartin.oci.genai.backend.backend.dao.GenAiModel;
 
 @Service
 public class OCIGenAIService {
@@ -73,9 +86,8 @@ public class OCIGenAIService {
                                 GenericChatRequest genericChatRequest = GenericChatRequest.builder()
                                         .messages(messages)
                                         .maxTokens(600)
-                                        .temperature((double)1)
+                                        .temperature(temperature)
                                         .frequencyPenalty((double)0)
-                                        .presencePenalty((double)0)
                                         .topP(0.75)
                                         .topK(-1)
                                         .isStream(false)
@@ -86,8 +98,53 @@ public class OCIGenAIService {
                                         .chatRequest(genericChatRequest)
                                         .build();
                                 break;
+                        case "xai":
+                                ChatContent xaiContent = TextContent.builder()
+                                        .text(inputText)
+                                        .build();
+                                List<ChatContent> xaiContents = new ArrayList<>();
+                                xaiContents.add(xaiContent);
+                                List<Message> xaiMessages = new ArrayList<>();
+                                Message xaiMessage = new UserMessage(xaiContents, "user");
+                                xaiMessages.add(xaiMessage);
+                                GenericChatRequest xaiGenericChatRequest = GenericChatRequest.builder()
+                                        .messages(xaiMessages)
+                                        .maxTokens(600)
+                                        .temperature(temperature)
+                                        .topP(0.75)
+                                        .isStream(false)
+                                        .build();
+                                chatDetails = ChatDetails.builder()
+                                        .servingMode(OnDemandServingMode.builder().modelId(currentModel.id()).build())
+                                        .compartmentId(COMPARTMENT_ID)
+                                        .chatRequest(xaiGenericChatRequest)
+                                        .build();
+                                break;
                         default:
-                                throw new IllegalStateException("Unexpected value: " + currentModel.vendor());
+                                log.warn("Provider {} not explicitly supported, falling back to GenericChatRequest", currentModel.vendor());
+                                ChatContent fbContent = TextContent.builder()
+                                        .text(inputText)
+                                        .build();
+                                List<ChatContent> fbContents = new ArrayList<>();
+                                fbContents.add(fbContent);
+                                List<Message> fbMessages = new ArrayList<>();
+                                Message fbMessage = new UserMessage(fbContents, "user");
+                                fbMessages.add(fbMessage);
+                                GenericChatRequest fbGenericChatRequest = GenericChatRequest.builder()
+                                        .messages(fbMessages)
+                                        .maxTokens(600)
+                                        .temperature(temperature)
+                                        .frequencyPenalty((double)0)
+                                        .topP(0.75)
+                                        .topK(-1)
+                                        .isStream(false)
+                                        .build();
+                                chatDetails = ChatDetails.builder()
+                                        .servingMode(OnDemandServingMode.builder().modelId(currentModel.id()).build())
+                                        .compartmentId(COMPARTMENT_ID)
+                                        .chatRequest(fbGenericChatRequest)
+                                        .build();
+                                break;
                 }
 
                 ChatRequest request = ChatRequest.builder()

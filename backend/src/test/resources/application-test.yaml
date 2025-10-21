@@ -1,0 +1,13 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration
+  liquibase:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+# Ensure test profile doesn't attempt external OCI or DB connections.
+# DataSource is provided by @MockBean in tests; no JDBC properties needed here.

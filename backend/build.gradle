@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'dev.victormartin.oci.genai.backend'
-version = '0.0.6'
+version = '0.0.7'
 
 java {
 	sourceCompatibility = '17'
@@ -24,7 +24,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'io.micrometer:micrometer-registry-prometheus'
 	implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
-	implementation 'org.flywaydb:flyway-core:10.17.0'
+	implementation 'org.liquibase:liquibase-core:4.25.0'
 	implementation 'org.netbeans.external:org-apache-commons-io:RELEASE113'
 	implementation 'com.oracle.oci.sdk:oci-java-sdk-shaded-full:3.52.1'
 	implementation 'com.oracle.oci.sdk:oci-java-sdk-core:3.52.1'

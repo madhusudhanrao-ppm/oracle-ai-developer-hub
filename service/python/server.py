@@ -87,7 +87,7 @@ def resolve_model_id(model_key: str) -> str:
 RESOLVED_MODEL_ID = resolve_model_id(MODEL_ID)
 print(f"RESOLVED_MODEL_ID: {RESOLVED_MODEL_ID}")
 
-# Cache models list for vendor lookup
+# Cache models list for vendor and capabilities lookup
 MODELS_CACHE = {}
 try:
     resp = generative_ai_mgmt_client.list_models(compartment_id=compartment_id)
@@ -95,9 +95,10 @@ try:
     for m in models:
         mid = getattr(m, "id", None)
         vendor = getattr(m, "vendor", "").lower()
+        capabilities = getattr(m, "capabilities", []) or []
         if mid:
-            MODELS_CACHE[mid] = vendor
-    print(f"Cached {len(MODELS_CACHE)} models for vendor lookup")
+            MODELS_CACHE[mid] = {"vendor": vendor, "capabilities": [c.upper() for c in capabilities]}
+    print(f"Cached {len(MODELS_CACHE)} models for vendor and capabilities lookup")
 except Exception as e:
     print(f"Warning: Failed to cache models list: {e}")
 
@@ -107,7 +108,7 @@ async def generate_ai_response(prompts, override_model_id=None):
     print(f"Effective model ID: {effective_model_id}")
 
     # Determine vendor from cached models
-    vendor = MODELS_CACHE.get(effective_model_id, "cohere").lower()  # Default to cohere
+    vendor = MODELS_CACHE.get(effective_model_id, {"vendor": "cohere"}).get("vendor", "cohere").lower()
     print(f"Model vendor: {vendor}")
 
     # Use Chat API for all models since they are primarily chat models
@@ -189,7 +190,39 @@ async def generate_ai_response(prompts, override_model_id=None):
         return chat_response
     except Exception as e:
         print(f"Error calling chat API: {e}")
-        return None
+        # Fallback to GenerateText only if model supports TEXT_GENERATION
+        model_info = MODELS_CACHE.get(effective_model_id, {})
+        if "TEXT_GENERATION" in model_info.get("capabilities", []):
+            try:
+                print("Falling back to GenerateText API")
+                generate_detail = oci.generative_ai_inference.models.GenerateTextDetails()
+                if vendor == "cohere":
+                    generate_request = oci.generative_ai_inference.models.CohereLlmInferenceRequest()
+                else:
+                    generate_request = oci.generative_ai_inference.models.GenericLlmInferenceRequest()  # Fallback to generic if needed
+                generate_request.prompt = prompts
+                generate_request.max_tokens = 1000
+                generate_request.temperature = 0.75
+                generate_request.top_p = 0.7
+                generate_request.frequency_penalty = 1.0
+                generate_detail.inference_request = generate_request
+                generate_detail.compartment_id = compartment_id
+                generate_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(model_id=effective_model_id)
+                generate_response = generative_ai_inference_client.generate_text(generate_detail)
+                print("**************************GenerateText Fallback Result**************************")
+                print(vars(generate_response))
+                # Extract text from generate response
+                if hasattr(generate_response.data, 'generated_texts') and generate_response.data.generated_texts:
+                    normalized_text = generate_response.data.generated_texts[0].text
+                else:
+                    normalized_text = str(generate_response.data)
+                return SimpleNamespace(data=SimpleNamespace(chat_response=SimpleNamespace(text=normalized_text)))
+            except Exception as fallback_e:
+                print(f"Fallback GenerateText failed: {fallback_e}")
+                return None
+        else:
+            print(f"Model does not support TEXT_GENERATION, skipping fallback")
+            return None
 
 @throttle(rate_limit=15, period=65.0)
 async def generate_ai_summary(summary_txt, prompt, override_model_id=None):
@@ -217,7 +250,7 @@ Text to summarize:
     print(f"Using chat API for summarization with model: {effective_model_id}")
 
     # Use the same chat API logic as generate_ai_response
-    vendor = MODELS_CACHE.get(effective_model_id, "cohere").lower()
+    vendor = MODELS_CACHE.get(effective_model_id, {"vendor": "cohere"}).get("vendor", "cohere").lower()
 
     # Use Chat API for summarization
     chat_detail = oci.generative_ai_inference.models.ChatDetails()

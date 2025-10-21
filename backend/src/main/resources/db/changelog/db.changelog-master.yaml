@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: db/migration/V1__core_tables.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/migration/V2__kb_tables.sql
+      relativeToChangelogFile: false

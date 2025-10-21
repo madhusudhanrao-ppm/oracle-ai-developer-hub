@@ -14,7 +14,7 @@ This project deploys an AI pipeline with a multipurpose front end for text gener
 - Oracle Cloud Infrastructure (OCI) Generative AI Service - [Getting Started with Generative AI](https://docs.oracle.com/en-us/iaas/Content/generative-ai/getting-started.htm)
 - Oracle Cloud Infrastructure Documentation - [Generative AI](https://docs.oracle.com/en-us/iaas/Content/generative-ai/home.htm)
 - Oracle Cloud Infrastructure (OCI) Generative AI Service SDK - [Oracle Cloud Infrastructure Python SDK](https://pypi.org/project/oci/)
-- Node v16 - [Node homepage](https://nodejs.org/en)
+- Node v18 - [Node homepage](https://nodejs.org/en)
 - Oracle JET v15 - [Oracle JET Homepage](https://www.oracle.com/webfolder/technetwork/jet/index.html)
 - OCI Container Engine for Kubernetes — [documentation](https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengoverview.htm)
 - Oracle Autonomous Database — [documentation](https://docs.oracle.com/en/database/autonomous-database-cloud-services.html)
@@ -79,7 +79,7 @@ npx zx scripts/tfvars.mjs
 ```
 
 ```bash
-cd deploy/terraform
+cd deploy/terraform && terraform init && terraform apply --auto-approve
 ```
 
 Init Terraform providers:
@@ -111,6 +111,62 @@ Create Kustomization files
 ```bash
 npx zx scripts/kustom.mjs
 ```
+
+### ADB Wallet for Backend (Required)
+
+You selected Autonomous Database (ADB) with Wallet for production. Before deploying the backend, create a Kubernetes Secret from your downloaded ADB Wallet and mount it into the backend pod. Then set `TNS_ADMIN` so the JDBC driver can find `sqlnet.ora` and `tnsnames.ora`.
+
+1) Create the wallet secret (use the path to your unzipped wallet directory):
+```bash
+# Namespace 'backend' is used by the provided manifests
+kubectl create secret generic adb-wallet \
+  --from-file=/ABSOLUTE/PATH/TO/WALLET/DIR \
+  -n backend
+```
+
+2) Mount the secret and set TNS_ADMIN in the backend Deployment (deploy/k8s/backend/backend.yaml):
+```yaml
+spec:
+  template:
+    spec:
+      volumes:
+        - name: adb-wallet
+          secret:
+            secretName: adb-wallet
+      containers:
+        - name: backend
+          volumeMounts:
+            - name: adb-wallet
+              mountPath: /opt/adb/wallet
+          env:
+            - name: TNS_ADMIN
+              value: /opt/adb/wallet
+```
+
+3) Ensure your Spring datasource uses the _high service and the same TNS_ADMIN:
+- application.yaml:
+  ```yaml
+  spring:
+    datasource:
+      driver-class-name: oracle.jdbc.OracleDriver
+      url: jdbc:oracle:thin:@DB_SERVICE_high?TNS_ADMIN=/opt/adb/wallet
+      username: ADMIN
+      password: "YOUR_PASSWORD"
+      type: oracle.ucp.jdbc.PoolDataSource
+  ```
+  You can also inject these via env vars/ConfigMap if preferred.
+
+4) Verify after rollout:
+- Check pods:
+  ```bash
+  kubectl get pods -n backend
+  kubectl logs deploy/backend -n backend
+  ```
+- Validate schema (via SQL Developer Web for your ADB):
+  ```sql
+  SELECT COUNT(*) FROM conversations;
+  SELECT COUNT(*) FROM kb_documents;
+  ```
 
 ### Kubernetes Deployment
 

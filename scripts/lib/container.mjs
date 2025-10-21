@@ -65,9 +65,9 @@ export async function pushImage(remote) {
 }
 
 export async function buildImage(name, version) {
-  console.log(`${ce} build . -t ${name}:${version}`);
+  console.log(`${ce} build --network=host --platform linux/amd64 . -t ${name}:${version}`);
   try {
-    await $`${ce} build . -t ${name}:${version}`;
+    await $`${ce} build --network=host --platform linux/amd64 . -t ${name}:${version}`;
   } catch (error) {
     exitWithError(error.stderr);
   }

@@ -34,8 +34,6 @@ const compartmentId = config.get("compartmentId");
 
 await createSSHKeys(projectName);
 await createCerts();
-await setLatestGenAIModelChat();
-await setLatestGenAIModelSummarization();
 
 console.log(`\nConfiguration file saved in: ${chalk.green(config.path)}`);
 
@@ -180,6 +178,5 @@ async function setLatestGenAIModel(capability, configKey) {
   }
 }
 
-// Call for CHAT and Summarization (assuming summarization uses CHAT capable models)
-setLatestGenAIModel("CHAT", "genAiModelChat");
-setLatestGenAIModel("CHAT", "genAiModelSummarization");
+await setLatestGenAIModel("CHAT", "genAiModelChat");
+await setLatestGenAIModel("CHAT", "genAiModelSummarization");

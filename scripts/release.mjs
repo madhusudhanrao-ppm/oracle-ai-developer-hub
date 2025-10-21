@@ -29,9 +29,6 @@ const namespace = config.get("namespace");
 const regionKey = config.get("regionKey");
 
 const pwdOutput = (await $`pwd`).stdout.trim();
-await cd(`${pwdOutput}/web`);
-const webVersion = await getNpmVersion();
-config.set("webVersion", webVersion);
 await cd(`${pwdOutput}/app`);
 const appVersion = await getNpmVersion();
 config.set("appVersion", appVersion);
@@ -53,22 +50,8 @@ config.set("ocir_user_email", ocir_user_email);
 config.set("ocir_user_token", ocir_user_token);
 
 await containerLogin(namespace, ocir_user, ocir_user_token, ocirUrl);
-await releaseWeb();
 await releaseApp();
 await releaseBackend();
-
-async function releaseWeb() {
-  const service = "web";
-  await cd(service);
-  const imageName = `${projectName}/${service}`;
-  await buildImage(`localhost/${imageName}`, webVersion);
-  const localImage = `localhost/${imageName}:${webVersion}`;
-  const remoteImage = `${ocirUrl}/${namespace}/${imageName}:${webVersion}`;
-  await tagImage(localImage, remoteImage);
-  await pushImage(remoteImage);
-  console.log(`${chalk.green(remoteImage)} pushed`);
-  await cd("..");
-}
 
 async function releaseApp() {
   const service = "app";

@@ -13,9 +13,9 @@ variable "autonomous_database_db_whitelisted_ips" {
   default = ["0.0.0.0/0"] # Don't do this in prod
 }
 
-variable "autonomous_database_cpu_core_count" {
+variable "autonomous_database_ecpu_count" {
   type    = number
-  default = 1
+  default = 2
 }
 
 variable "autonomous_database_data_storage_size_in_tbs" {
@@ -38,15 +38,17 @@ resource "oci_database_autonomous_database" "adb" {
   db_name        = "${local.project_name}${local.deploy_id}"
 
   #Optional
-  admin_password              = random_password.adb_admin_password.result
-  cpu_core_count              = var.autonomous_database_cpu_core_count
-  data_storage_size_in_tbs    = var.autonomous_database_data_storage_size_in_tbs
-  db_workload                 = var.autonomous_database_db_workload
-  display_name                = "${local.project_name}${local.deploy_id}"
+  db_version               = "23ai"
+  admin_password           = random_password.adb_admin_password.result
+  compute_model            = "ECPU"
+  compute_count            = var.autonomous_database_ecpu_count
+  data_storage_size_in_tbs = var.autonomous_database_data_storage_size_in_tbs
+  db_workload              = var.autonomous_database_db_workload
+  display_name             = "${local.project_name}${local.deploy_id}"
   is_mtls_connection_required = true
-  whitelisted_ips             = var.autonomous_database_db_whitelisted_ips
-  is_auto_scaling_enabled     = true
-  license_model               = var.autonomous_database_db_license
+  whitelisted_ips          = var.autonomous_database_db_whitelisted_ips
+  is_auto_scaling_enabled  = true
+  license_model            = var.autonomous_database_db_license
 }
 
 # For mTLS and Wallet connectivity consider the following code

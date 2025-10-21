@@ -21,7 +21,7 @@
   ],
   "components": ["./jet_components/**/component.json"],
   "builtinJetRules": true,
-  "jetVer": "15.1",
+  "jetVer": "19.0",
   "ecmaVer": 14,
   "format": "prose",
   "severity": "all",

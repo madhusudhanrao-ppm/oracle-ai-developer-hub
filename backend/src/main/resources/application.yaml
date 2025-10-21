@@ -18,7 +18,7 @@ spring:
   jpa:
     hibernate:
       use-new-id-generator-mappings: false
-      ddl-auto: update
+      ddl-auto: none
 oracle:
   jdbc:
     fanEnabled: true
@@ -31,6 +31,9 @@ genai:
   compartment_id: "COMPARTMENT_ID"
   chat_model_id: "ocid1.generativeaimodel.AAAAAAAAAAAAA"
   summarization_model_id: "ocid1.generativeaimodel.AAAAAAAAAAAAA"
+  embed_model_id: "cohere.embed-english-v3.0"
 storage:
   path: "/PATH/FOR/UPLOAD/FILES"
-
+logging:
+  level:
+    com.oracle.bmc.generativeai.model.ModelCapability: ERROR

@@ -1,6 +1,74 @@
 # Run Local
 
-## 🚀 One-Shot Deployment (Recommended)
+## Spring Boot Backend (Recommended)
+
+Use the Java/Spring backend with the Oracle JET web UI.
+
+Prerequisites:
+- JDK 17+
+- Node.js 18+
+- OCI credentials configured locally (~/.oci/config) with access to Generative AI
+- Oracle ADB Wallet unzipped to an absolute path (contains sqlnet.ora, tnsnames.ora, etc.)
+
+1) Configure backend DB and OCI in backend/src/main/resources/application.yaml:
+```yaml
+spring:
+  datasource:
+    driver-class-name: oracle.jdbc.OracleDriver
+    url: jdbc:oracle:thin:@DB_SERVICE_high?TNS_ADMIN=/ABSOLUTE/PATH/TO/WALLET
+    username: ADMIN
+    password: "YOUR_PASSWORD"
+    type: oracle.ucp.jdbc.PoolDataSource
+    oracleucp:
+      sql-for-validate-connection: SELECT 1 FROM dual
+      connection-pool-name: pool1
+      initial-pool-size: 5
+      min-pool-size: 5
+      max-pool-size: 10
+
+genai:
+  region: "US_CHICAGO_1"
+  config:
+    location: "~/.oci/config"
+    profile: "DEFAULT"
+  compartment_id: "ocid1.compartment.oc1..xxxx"
+```
+
+2) Run backend:
+```bash
+cd backend
+./gradlew clean build
+./gradlew bootRun
+# Backend runs on http://localhost:8080
+```
+
+3) Run web UI:
+```bash
+cd app
+npm ci
+npm run serve
+# UI on http://localhost:8000 (or as printed)
+```
+
+4) Test:
+```bash
+# List models
+curl http://localhost:8080/api/genai/models
+
+# Upload a PDF for RAG
+curl -F "file=@/absolute/path/to/document.pdf" http://localhost:8080/api/upload
+
+# Ask a RAG question
+curl -X POST http://localhost:8080/api/genai/rag \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What does section 2 cover?","modelId":"ocid1.generativeaimodel.oc1...."}'
+```
+
+Notes:
+- Liquibase applies schema migrations on backend startup (conversations, messages, memory, telemetry, KB).
+- The backend adapts parameters per vendor (e.g., does not send presencePenalty to xAI Grok).
+
+## 🚀 One-Shot Deployment (Alternative)
 
 The easiest way to get started is using the automated deployment script:
 

@@ -20,6 +20,7 @@ import com.oracle.bmc.generativeaiinference.model.EmbedTextDetails;
 import com.oracle.bmc.generativeaiinference.model.OnDemandServingMode;
 import com.oracle.bmc.generativeaiinference.requests.EmbedTextRequest;
 import com.oracle.bmc.generativeaiinference.responses.EmbedTextResponse;
+import com.oracle.bmc.model.BmcException;
 
 import dev.victormartin.oci.genai.backend.backend.dao.KbChunk;
 import dev.victormartin.oci.genai.backend.backend.dto.RagQuestionDto;
@@ -71,12 +72,48 @@ public class RagService {
 
     private List<Float> embedQuestion(String question) {
         String compartmentId = env.getProperty("genai.compartment_id");
-        String embedModelId = env.getProperty("genai.embed_model_id", "cohere.embed-english-3"); // default
+        String configured = env.getProperty("genai.embed_model_id");
+        // Fallback candidates known to be available in most regions
+        List<String> candidates = new ArrayList<>();
+        if (configured != null && !configured.isBlank()) {
+            candidates.add(configured);
+        }
+        candidates.add("cohere.embed-english-v3.0");
+        candidates.add("cohere.embed-multilingual-v3.0");
+        candidates.add("cohere.embed-english-light-v3.0");
+
+        BmcException last404 = null;
+        RuntimeException lastOther = null;
+
+        for (String modelId : candidates) {
+            try {
+                return embedWithModel(question, compartmentId, modelId);
+            } catch (BmcException e) {
+                if (e.getStatusCode() == 404) {
+                    log.warn("Embedding model not found in region for id {} (404). Trying next candidate.", modelId);
+                    last404 = e;
+                    continue;
+                }
+                lastOther = new RuntimeException("EmbedText failed for modelId " + modelId + " with status " + e.getStatusCode(), e);
+            } catch (RuntimeException e) {
+                lastOther = e;
+            }
+        }
+        if (lastOther != null) {
+            throw lastOther;
+        }
+        if (last404 != null) {
+            throw new IllegalStateException("No available embedding model found. Tried: " + String.join(", ", candidates), last404);
+        }
+        throw new IllegalStateException("No available embedding model found. Tried: " + String.join(", ", candidates));
+    }
+
+    private List<Float> embedWithModel(String question, String compartmentId, String modelId) {
         GenerativeAiInferenceClient client = inferenceClientService.getClient();
 
         EmbedTextDetails details = EmbedTextDetails.builder()
                 .inputs(List.of(question))
-                .servingMode(OnDemandServingMode.builder().modelId(embedModelId).build())
+                .servingMode(OnDemandServingMode.builder().modelId(modelId).build())
                 .compartmentId(compartmentId)
                 .isEcho(false)
                 .build();
