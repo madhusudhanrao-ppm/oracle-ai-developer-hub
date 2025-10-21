@@ -61,7 +61,7 @@ public class RagService {
         List<Float> qEmbed = embedQuestion(req.question());
 
         // 2) Retrieve top-k chunks from Oracle DB 23ai
-        List<KbChunk> topk = topK(tenantId, qEmbed, req.docIds(), req.tags(), k);
+        List<KbChunk> topk = topK(tenantId, qEmbed, req.docIds(), req.tags(), k, req.question());
 
         // 3) Assemble prompt with citations
         String prompt = assemblePrompt(req.question(), topk);
@@ -132,11 +132,13 @@ public class RagService {
         if (first instanceof List) {
             @SuppressWarnings("unchecked")
             List<Float> vals = (List<Float>) first;
+            try { log.info("RAG.embed: model={} dim={}", modelId, (vals != null ? vals.size() : -1)); } catch (Exception ignore) {}
             return vals;
         }
         try {
             @SuppressWarnings("unchecked")
             List<Float> vals = (List<Float>) first.getClass().getMethod("getValues").invoke(first);
+            try { log.info("RAG.embed: model={} dim={}", modelId, (vals != null ? vals.size() : -1)); } catch (Exception ignore) {}
             return vals;
         } catch (Exception e) {
             throw new IllegalStateException("Unsupported embedding element type: " + first.getClass(), e);
@@ -149,7 +151,7 @@ public class RagService {
      * The SQL below is a placeholder; replace VECTOR_DISTANCE(...) with the exact function for your DB version,
      * and use appropriate binding for vector values (e.g. JSON array -> VECTOR).
      */
-    private List<KbChunk> topK(String tenantId, List<Float> qEmbed, List<String> docIds, List<String> tags, int k) {
+    private List<KbChunk> topK(String tenantId, List<Float> qEmbed, List<String> docIds, List<String> tags, int k, String question) {
         List<KbChunk> out = new ArrayList<>();
 
         // Fallback: if VECTOR SQL isn't configured yet, return empty list (chat will answer without context)
@@ -163,28 +165,207 @@ public class RagService {
                 // (docIds IN ...) and tags_json filters using JSON_EXISTS
                 "FETCH FIRST ? ROWS ONLY";
 
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = dataSource.getConnection()) {
+            boolean usedVector = false;
 
-            ps.setString(1, tenantId);
-            ps.setInt(2, k);
+            // 1) Try Oracle 23ai VECTOR path when we have a query embedding
+            if (qEmbed != null && !qEmbed.isEmpty()) {
+                // Build JSON array for TO_VECTOR(?)
+                StringBuilder vsb = new StringBuilder();
+                vsb.append('[');
+                for (int i = 0; i < qEmbed.size(); i++) {
+                    if (i > 0) vsb.append(',');
+                    Float v = qEmbed.get(i);
+                    if (v == null || v.isNaN() || v.isInfinite()) {
+                        vsb.append('0');
+                    } else {
+                        vsb.append(v.toString());
+                    }
+                }
+                vsb.append(']');
+                String qvecJson = vsb.toString();
 
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    out.add(new KbChunk(
-                            rs.getLong("chunk_id"),
-                            rs.getString("doc_id"),
-                            rs.getString("title"),
-                            rs.getString("uri"),
-                            rs.getString("text"),
-                            rs.getString("source_meta"),
-                            rs.getInt("chunk_ix"),
-                            rs.getString("tenant_id")
-                    ));
+                StringBuilder sqlVec = new StringBuilder();
+                sqlVec.append("SELECT c.id AS chunk_id, c.doc_id, d.title, d.uri, c.text, c.source_meta, c.chunk_ix, c.tenant_id, ");
+                sqlVec.append("VECTOR_DISTANCE(e.embedding, TO_VECTOR(?)) AS dist ");
+                sqlVec.append("FROM kb_embeddings e ");
+                sqlVec.append("JOIN kb_chunks c ON c.id = e.chunk_id ");
+                sqlVec.append("JOIN kb_documents d ON d.doc_id = c.doc_id ");
+                sqlVec.append("WHERE c.tenant_id = ? ");
+                if (docIds != null && !docIds.isEmpty()) {
+                    sqlVec.append("AND c.doc_id IN (");
+                    for (int i = 0; i < docIds.size(); i++) {
+                        if (i > 0) sqlVec.append(',');
+                        sqlVec.append('?');
+                    }
+                    sqlVec.append(") ");
+                }
+                // Optional: add tags filter via JSON_EXISTS(d.tags_json, '$[*]?(@ like_regex "...")')
+                sqlVec.append("ORDER BY dist ASC FETCH FIRST ? ROWS ONLY");
+
+                try (PreparedStatement ps = conn.prepareStatement(sqlVec.toString())) {
+                    int idx = 1;
+                    ps.setString(idx++, qvecJson);
+                    ps.setString(idx++, tenantId);
+                    if (docIds != null && !docIds.isEmpty()) {
+                        for (String id : docIds) {
+                            ps.setString(idx++, id);
+                        }
+                    }
+                    ps.setInt(idx++, k);
+
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            out.add(new KbChunk(
+                                    rs.getLong("chunk_id"),
+                                    rs.getString("doc_id"),
+                                    rs.getString("title"),
+                                    rs.getString("uri"),
+                                    rs.getString("text"),
+                                    rs.getString("source_meta"),
+                                    rs.getInt("chunk_ix"),
+                                    rs.getString("tenant_id")
+                            ));
+                        }
+                    }
+                    usedVector = !out.isEmpty();
+                } catch (SQLException e1) {
+                    log.debug("Vector search attempt failed ({}). Will fallback to text search: {}", e1.getClass().getSimpleName(), e1.getMessage());
+                    out.clear();
+                    usedVector = false;
                 }
             }
-        } catch (SQLException e) {
-            log.warn("Vector search not executed (falling back to zero-context): {}", e.getMessage());
+
+            // 2) Fallback: lightweight text search over kb_chunks to avoid empty context
+            if (!usedVector) {
+                // Extract simple tokens from question
+                List<String> tokens = new ArrayList<>();
+                if (question != null) {
+                    String q = question.toLowerCase();
+                    for (String t : q.split("\\W+")) {
+                        if (t != null && t.length() >= 3) {
+                            tokens.add(t);
+                        }
+                        if (tokens.size() >= 5) break; // cap tokens
+                    }
+                }
+
+                // If we have some tokens, use a case-insensitive regex over CLOB
+                if (!tokens.isEmpty()) {
+                    StringBuilder regex = new StringBuilder();
+                    regex.append('(');
+                    for (int i = 0; i < tokens.size(); i++) {
+                        if (i > 0) regex.append('|');
+                        // strictly alnum to avoid regex injection
+                        String safe = tokens.get(i).replaceAll("[^a-z0-9]", "");
+                        if (!safe.isEmpty()) {
+                            regex.append(safe);
+                        }
+                    }
+                    regex.append(')');
+
+                    StringBuilder sqlLike = new StringBuilder();
+                    sqlLike.append("SELECT c.id AS chunk_id, c.doc_id, d.title, d.uri, c.text, c.source_meta, c.chunk_ix, c.tenant_id ");
+                    sqlLike.append("FROM kb_chunks c ");
+                    sqlLike.append("JOIN kb_documents d ON d.doc_id = c.doc_id ");
+                    sqlLike.append("WHERE c.tenant_id = ? ");
+                    if (docIds != null && !docIds.isEmpty()) {
+                        sqlLike.append("AND c.doc_id IN (");
+                        for (int i = 0; i < docIds.size(); i++) {
+                            if (i > 0) sqlLike.append(',');
+                            sqlLike.append('?');
+                        }
+                        sqlLike.append(") ");
+                    }
+                    sqlLike.append("AND REGEXP_LIKE(c.text, ?, 'i') ");
+                    sqlLike.append("FETCH FIRST ? ROWS ONLY");
+
+                    try (PreparedStatement ps = conn.prepareStatement(sqlLike.toString())) {
+                        int idx = 1;
+                        ps.setString(idx++, tenantId);
+                        if (docIds != null && !docIds.isEmpty()) {
+                            for (String id : docIds) {
+                                ps.setString(idx++, id);
+                            }
+                        }
+                        ps.setString(idx++, regex.toString());
+                        ps.setInt(idx++, k);
+
+                        try (ResultSet rs = ps.executeQuery()) {
+                            while (rs.next()) {
+                                out.add(new KbChunk(
+                                        rs.getLong("chunk_id"),
+                                        rs.getString("doc_id"),
+                                        rs.getString("title"),
+                                        rs.getString("uri"),
+                                        rs.getString("text"),
+                                        rs.getString("source_meta"),
+                                        rs.getInt("chunk_ix"),
+                                        rs.getString("tenant_id")
+                                ));
+                            }
+                        }
+                    } catch (SQLException e2) {
+                        log.warn("Fallback text search failed ({}): {}", e2.getClass().getSimpleName(), e2.getMessage());
+                    }
+                }
+
+                // If still empty, last resort: fetch recent chunks for tenant
+                if (out.isEmpty()) {
+                    StringBuilder sqlAny = new StringBuilder();
+                    sqlAny.append("SELECT c.id AS chunk_id, c.doc_id, d.title, d.uri, c.text, c.source_meta, c.chunk_ix, c.tenant_id ");
+                    sqlAny.append("FROM kb_chunks c ");
+                    sqlAny.append("JOIN kb_documents d ON d.doc_id = c.doc_id ");
+                    sqlAny.append("WHERE c.tenant_id = ? ");
+                    if (docIds != null && !docIds.isEmpty()) {
+                        sqlAny.append("AND c.doc_id IN (");
+                        for (int i = 0; i < docIds.size(); i++) {
+                            if (i > 0) sqlAny.append(',');
+                            sqlAny.append('?');
+                        }
+                        sqlAny.append(") ");
+                    }
+                    sqlAny.append("ORDER BY c.id DESC FETCH FIRST ? ROWS ONLY");
+
+                    try (PreparedStatement ps = conn.prepareStatement(sqlAny.toString())) {
+                        int idx = 1;
+                        ps.setString(idx++, tenantId);
+                        if (docIds != null && !docIds.isEmpty()) {
+                            for (String id : docIds) {
+                                ps.setString(idx++, id);
+                            }
+                        }
+                        ps.setInt(idx++, k);
+
+                        try (ResultSet rs = ps.executeQuery()) {
+                            while (rs.next()) {
+                                out.add(new KbChunk(
+                                        rs.getLong("chunk_id"),
+                                        rs.getString("doc_id"),
+                                        rs.getString("title"),
+                                        rs.getString("uri"),
+                                        rs.getString("text"),
+                                        rs.getString("source_meta"),
+                                        rs.getInt("chunk_ix"),
+                                        rs.getString("tenant_id")
+                                ));
+                            }
+                        }
+                    } catch (SQLException e3) {
+                        log.warn("Fallback any-chunk retrieval failed ({}): {}", e3.getClass().getSimpleName(), e3.getMessage());
+                    }
+                }
+            }
+
+            log.info("RAG.topK tenant={} k={} docIds={} usedVectorCandidates={} results={}",
+                    tenantId,
+                    k,
+                    (docIds == null ? 0 : docIds.size()),
+                    (qEmbed != null && !qEmbed.isEmpty()),
+                    out.size());
+
+        } catch (SQLException outer) {
+            log.warn("DB connection failed during retrieval: {}", outer.getMessage());
         }
         return out;
     }

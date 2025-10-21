@@ -6,10 +6,11 @@ import "ojs/ojswitch";
 import "ojs/ojlistitemlayout";
 import "ojs/ojhighlighttext";
 import "ojs/ojmessages";
+import "oj-c/button";
 import MutableArrayDataProvider = require("ojs/ojmutablearraydataprovider");
 import { ojSelectSingle } from "@oracle/oraclejet/ojselectsingle";
 
-type ServiceTypeVal = "text" | "summary" | "sim";
+type ServiceTypeVal = "text" | "summary" | "sim" | "upload";
 type BackendTypeVal = "java" | "python";
 type Services = {
   label: string;
@@ -28,6 +29,7 @@ type Props = {
 const serviceTypes = [
   { value: "text", label: "Generative Text" },
   { value: "summary", label: "Summarize" },
+  { value: "upload", label: "Upload" },
 ];
 // { value: "sim", label: "Simulation" },
 
@@ -176,6 +178,19 @@ export const Settings = (props: Props) => {
     props.modelIdChange(selected, finetune);
   };
 
+  const runDiag = async (_ev: any) => {
+    try {
+      const res = await fetch("/api/kb/diag?tenantId=default");
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const json = await res.json();
+      console.log("KB DIAG:", json);
+      setErrorMessage(null);
+    } catch (e: any) {
+      setErrorMessage(`KB diag failed: ${e?.message || e}`);
+      console.error("KB DIAG failed:", e);
+    }
+  };
+
   const modelTemplate = (item: any) => {
     return (
       <oj-list-item-layout class="oj-listitemlayout-padding-off">
@@ -239,6 +254,9 @@ export const Settings = (props: Props) => {
                 }
               }}
             ></oj-switch>
+          </oj-c-form-layout>
+          <oj-c-form-layout>
+            <oj-c-button label="Check RAG status" onojAction={runDiag}></oj-c-button>
           </oj-c-form-layout>
         </>
       )}

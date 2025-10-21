@@ -14,6 +14,25 @@ Check out [demo here](https://youtu.be/hpRoQ93YeaQ)
 
 ![alt text here](images/demo.gif)
 
+## UI behavior and debug logging
+
+- Database keepalive: the UI pings `/api/kb/diag` on startup and periodically.
+  - On first success it logs a single line: `DB: database active`.
+  - Subsequent successes are silent; failures log `warn`; recovery logs an `info`.
+- Fixed chat input bar: the chat input is fixed at the bottom; the list view has extra bottom padding to avoid overlap.
+- Opt‑in debug logs:
+  - A small helper (`app/src/libs/debug.ts`) gates verbose logs behind `localStorage.debug === "1"`.
+  - Enable:
+    ```js
+    localStorage.setItem("debug", "1")
+    ```
+    Disable:
+    ```js
+    localStorage.removeItem("debug")
+    ```
+- RAG in Settings: enable “Use RAG” in Settings to augment chat with your uploaded documents.
+- Upload header: the `modelId` request header is optional for `POST /api/upload`; the server no longer requires it.
+
 ## Getting Started
 
 ### 0. Prerequisites and setup

@@ -144,3 +144,16 @@ SELECT index_name FROM user_indexes WHERE index_name = 'KB_VEC_IDX';
   - Verify tnsnames.ora service name matches URL, and TNS_ADMIN points to wallet directory.
 - Vector index creation:
   - The script tries multiple syntaxes (HNSW/IVF). If none work (older DB), embeddings still persist, but ANN search is disabled until supported.
+
+## Additional notes
+
+- Oracle driver generated keys:
+  - Some environments return “Invalid conversion requested” when calling `getGeneratedKeys()` for identity columns.
+  - The backend (KbIngestService) falls back to:
+    ```sql
+    SELECT id FROM kb_chunks WHERE doc_id = ? AND tenant_id = ? AND chunk_ix = ?
+    ```
+    to retrieve the generated key. Ingestion proceeds and transactions are committed.
+- Embedding insert fallbacks:
+  - The backend first tries `to_vector(?)`, then `VECTOR(?)`.
+  - If both are unavailable, a row is inserted with `NULL` embedding to keep joins working; vector search will be unavailable until VECTOR is supported in your database version.

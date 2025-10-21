@@ -76,3 +76,18 @@ curl -X POST http://localhost:8080/api/genai/rag \
 - The backend enforces a minimal, compatible set of parameters per vendor to avoid 400 errors.
 - If vendors change parameter support, adjust the request builders accordingly (in `OCIGenAIService`).
 - See `TROUBLESHOOTING.md` for common error signatures and fixes.
+
+## Embedding models and dimensions
+
+- Embedding model is configured via `genai.embed_model_id` and is independent from the chat model.
+- The KB schema uses `VECTOR(1024, FLOAT32)`. Prefer a 1024-dimension embedding model (e.g., `cohere.embed-english-v3.0`). If you choose a different dimension, update the Liquibase migration and the insertion paths accordingly.
+- Validate your embedding path quickly with: `GET /api/kb/diag/embed?text=test` (expect `ok: true`, `vectorLen ~ 1024`).
+
+## Summarization model
+
+- File summaries during upload use `genai.summarization_model_id`. This does not affect chat or embedding models.
+
+## References
+
+- RAG flow and API quick reference: see `RAG.md`.
+- Recent changes and notes: see `CHANGES.md`.

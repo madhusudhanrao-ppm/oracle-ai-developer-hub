@@ -2,6 +2,7 @@ import { Chat } from "./chat";
 import { Summary } from "./summary";
 import { Simulation } from "./simulation";
 import { Settings } from "./settings";
+import { Upload } from "./upload";
 import "preact";
 import "ojs/ojinputsearch";
 import "oj-c/message-toast";
@@ -17,7 +18,7 @@ import { InitStomp, sendPrompt } from "./stomp-interface";
 import { Client } from "@stomp/stompjs";
 import { ConvoCtx } from "../app";
 
-type ServiceTypes = "text" | "summary" | "sim";
+type ServiceTypes = "text" | "summary" | "sim" | "upload";
 type BackendTypes = "java" | "python";
 type Chat = {
   id?: number;
@@ -326,6 +327,9 @@ const Content = ({ settingsOpened, setSettingsOpened }: ContentProps) => {
           backendType={backendType}
           modelId={modelId}
         />
+      )}
+      {serviceType === "upload" && (
+        <Upload backendType={backendType} modelId={modelId} />
       )}
     </div>
   );

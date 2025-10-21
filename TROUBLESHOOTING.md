@@ -98,6 +98,18 @@ This guide covers common issues across the backend (Spring Boot), frontend (Orac
 - Ask specific questions referencing known sections to verify.
 - For large PDFs, check server logs; ingestion may take time.
 
+### RAG returns no context / results=0
+- Check diagnostics:
+  - `GET /api/kb/diag?tenantId=default` → expect `dbOk: true`
+  - Confirm `chunksTenant > 0` and ideally `embeddingsNonNullTenant > 0`
+  - `GET /api/kb/diag/embed?text=test` → expect `ok: true` and `vectorLen ~ 1024`
+- Tenant consistency:
+  - Ensure the same tenant is used for both upload and queries (default: `default`).
+- Driver note:
+  - If you see a WARN “getGeneratedKeys failed (Invalid conversion requested)”, the backend falls back to `SELECT id ...` so chunk inserts still succeed. This is expected and safe.
+- VECTOR not available:
+  - If `to_vector(?)` and `VECTOR(?)` are unavailable, the backend inserts `NULL` embeddings, allowing text-based snippet fallback (less accurate). Upgrade DB for vector search.
+
 ## Backend and UI
 
 ### Backend not starting
@@ -115,6 +127,18 @@ This guide covers common issues across the backend (Spring Boot), frontend (Orac
 ### WebSocket/STOMP errors
 - Verify the backend WebSocket/STOMP configuration and ports (if used by your UI features).
 - Check that no proxies/firewalls are blocking WebSocket upgrades.
+
+### UI debug logging (quiet by default)
+- By default the UI minimizes console noise (success keepalives are silent after the first info line).
+- Enable verbose client-side logs:
+  ```js
+  localStorage.setItem("debug", "1")
+  ```
+  Refresh the page. Use:
+  ```js
+  localStorage.removeItem("debug")
+  ```
+  to disable.
 
 ## Performance tips
 
