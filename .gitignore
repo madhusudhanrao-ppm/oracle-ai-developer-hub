@@ -41,6 +41,9 @@ service/python/Dockerfile
 deploy/k8s/backend/application.yaml
 deploy/k8s/overlays/prod/kustomization.yaml
 deploy/k8s/backend/wallet/
+devrel-writes/
+service/python/config.json
+context/
 
 generated/
 
@@ -77,6 +80,3 @@ build/
 bin/
 dist/
 application-local.yaml
-
-devrel-writes/
-service/python/config.json
