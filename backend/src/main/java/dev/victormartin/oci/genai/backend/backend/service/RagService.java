@@ -190,7 +190,7 @@ public class RagService {
                 sqlVec.append("VECTOR_DISTANCE(e.embedding, TO_VECTOR(?)) AS dist ");
                 sqlVec.append("FROM kb_embeddings e ");
                 sqlVec.append("JOIN kb_chunks c ON c.id = e.chunk_id ");
-                sqlVec.append("JOIN kb_documents d ON d.doc_id = c.doc_id ");
+                sqlVec.append("JOIN kb_documents_dv d ON d.doc_id = c.doc_id ");
                 sqlVec.append("WHERE c.tenant_id = ? ");
                 if (docIds != null && !docIds.isEmpty()) {
                     sqlVec.append("AND c.doc_id IN (");
@@ -267,7 +267,7 @@ public class RagService {
                     StringBuilder sqlLike = new StringBuilder();
                     sqlLike.append("SELECT c.id AS chunk_id, c.doc_id, d.title, d.uri, c.text, c.source_meta, c.chunk_ix, c.tenant_id ");
                     sqlLike.append("FROM kb_chunks c ");
-                    sqlLike.append("JOIN kb_documents d ON d.doc_id = c.doc_id ");
+                    sqlLike.append("JOIN kb_documents_dv d ON d.doc_id = c.doc_id ");
                     sqlLike.append("WHERE c.tenant_id = ? ");
                     if (docIds != null && !docIds.isEmpty()) {
                         sqlLike.append("AND c.doc_id IN (");
@@ -315,7 +315,7 @@ public class RagService {
                     StringBuilder sqlAny = new StringBuilder();
                     sqlAny.append("SELECT c.id AS chunk_id, c.doc_id, d.title, d.uri, c.text, c.source_meta, c.chunk_ix, c.tenant_id ");
                     sqlAny.append("FROM kb_chunks c ");
-                    sqlAny.append("JOIN kb_documents d ON d.doc_id = c.doc_id ");
+                    sqlAny.append("JOIN kb_documents_dv d ON d.doc_id = c.doc_id ");
                     sqlAny.append("WHERE c.tenant_id = ? ");
                     if (docIds != null && !docIds.isEmpty()) {
                         sqlAny.append("AND c.doc_id IN (");

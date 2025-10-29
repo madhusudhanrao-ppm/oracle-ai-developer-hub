@@ -99,6 +99,8 @@ public class KbIngestService {
 
         // Upsert document
         upsertDocument(effectiveDocId, effectiveTenant, title, uri, mime, tagsJson, contentHash);
+        // Upsert JSON-first document (for Duality View projection)
+        upsertDocumentJson(effectiveDocId, effectiveTenant, title, uri, mime, tagsJson, contentHash);
 
         // Chunk the text
         List<Chunk> chunks = chunkText(trimmed, 2000, 300);
@@ -360,5 +362,70 @@ public class KbIngestService {
         }
         sb.append(']');
         return sb.toString();
+    }
+
+    private void upsertDocumentJson(String docId,
+                                    String tenantId,
+                                    String title,
+                                    String uri,
+                                    String mime,
+                                    String tagsJson,
+                                    String hash) {
+        // Keep JSON as canonical source for Duality View projection.
+        // We accept tagsJson as either JSON array (e.g., ["a","b"]) or anything else (falls back to []).
+        String json = buildDocJson(title, uri, mime, tagsJson, hash);
+        String sql = "MERGE INTO kb_documents_json j " +
+                "USING (SELECT ? AS doc_id FROM dual) s " +
+                "ON (j.doc_id = s.doc_id) " +
+                "WHEN MATCHED THEN UPDATE SET j.tenant_id = ?, j.data = ?, j.created_at = SYSTIMESTAMP " +
+                "WHEN NOT MATCHED THEN INSERT (doc_id, tenant_id, data) VALUES (?, ?, ?)";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            int i = 1;
+            ps.setString(i++, docId);
+            ps.setString(i++, tenantId);
+            ps.setString(i++, json);
+            ps.setString(i++, docId);
+            ps.setString(i++, tenantId);
+            ps.setString(i++, json);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            log.warn("Document JSON upsert failed for docId={} ({}). Continuing: {}", docId, e.getClass().getSimpleName(), e.getMessage());
+        }
+    }
+
+    private String buildDocJson(String title, String uri, String mime, String tagsJson, String hash) {
+        String safeTitle = jsonEscape(title);
+        String safeUri = jsonEscape(uri);
+        String safeMime = jsonEscape(mime);
+        String safeHash = jsonEscape(hash);
+        String tags = normalizeTagsArray(tagsJson);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append('{');
+        sb.append("\"title\":").append(safeTitle == null ? "null" : "\"" + safeTitle + "\"").append(',');
+        sb.append("\"uri\":").append(safeUri == null ? "null" : "\"" + safeUri + "\"").append(',');
+        sb.append("\"mime\":").append(safeMime == null ? "null" : "\"" + safeMime + "\"").append(',');
+        sb.append("\"hash\":").append(safeHash == null ? "null" : "\"" + safeHash + "\"").append(',');
+        sb.append("\"tags\":").append(tags);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private String jsonEscape(String s) {
+        if (s == null) return null;
+        // Minimal escaping for quotes and backslashes
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String normalizeTagsArray(String tagsJson) {
+        if (tagsJson == null || tagsJson.isBlank()) return "[]";
+        String t = tagsJson.trim();
+        if (t.startsWith("[")) {
+            return t; // already an array
+        }
+        // If caller passed an object or plain string, fallback to empty array to keep schema consistent
+        return "[]";
     }
 }

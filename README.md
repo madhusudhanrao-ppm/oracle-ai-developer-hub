@@ -1,15 +1,15 @@
 # From GUIs to RAG: Building a Cloud‑Native RAG on Oracle Cloud
-Practical deployment blueprint using Oracle Database 26ai, OCI Generative AI, Spring Boot and Oracle JET with Victor Martin and John "JB" Brock (aka. peppertech)
+Practical deployment blueprint using Oracle Database 26ai, OCI Generative AI, Spring Boot and Oracle JET
 
 Direct answer: This repo ships a complete RAG app (Oracle JET UI → Spring Boot → OCI Generative AI → Oracle Database 26ai VECTOR) so you don’t need a separate vector database or fragile JSON↔relational sync.
 
 <!-- keywords: oracle database 26ai, vector search, rag, json relational duality views, select ai, oci generative ai, oracle jet, spring boot, kubernetes, oke, pdf rag, knowledge base -->
 
-Updated for Oracle Database 26ai and the latest OCI Generative AI model catalog. This repo aligns docs across Data → Model → Service with a production-ready Kubernetes deployment flow.
+Updated for Oracle Database 26ai and the latest OCI Generative AI model catalog.
 
-We don’t use computers the way we used to. We moved from command lines to GUIs, from click‑and‑type to touch and voice—and now to assistants that understand intent. The next leap isn’t a new button; it’s software that adapts to people. Assistants and agents shift the unit of work from “click these 7 controls” to “state your intent.”
+We don’t use computers the way we used to. We moved from command lines to GUIs, from click‑and‑type to touch and voice—and now to assistants that understand intent. The next leap isn’t a new button; it’s software that adapts to people.
 
-Shipping that shift in the enterprise takes more than calling an LLM API. It requires architecture, guardrails, and production‑ready foundations: durable context, observability, safe parameters, and a UI people trust. A decade of shipping software taught a simple lesson: people don’t want more features; they want more understanding. Assistants are how we ship understanding.
+Shipping that shift in the enterprise takes more than calling an LLM API. It requires architecture, guardrails, and solid foundations: durable context, observability, safe parameters, and a UI. A decade of shipping software taught a simple lesson: people don’t want more features; they want more understanding.
 
 This repository provides a runnable blueprint:
 - Web UI: Oracle JET for an enterprise‑grade chat interface with upload and settings.

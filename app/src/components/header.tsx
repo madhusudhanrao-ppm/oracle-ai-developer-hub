@@ -38,7 +38,7 @@ export const Header = (props: Props) => {
             role="img"
             class="oj-icon demo-oracle-icon"
             title="Oracle Logo"
-            alt="Oracle Logo"></span>
+            ></span>
           <h1 class="oj-web-applayout-header-title oj-color-invert">
             {props.appName}
           </h1>

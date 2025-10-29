@@ -5,3 +5,6 @@ databaseChangeLog:
   - include:
       file: db/migration/V2__kb_tables.sql
       relativeToChangelogFile: false
+  - include:
+      file: db/migration/V3__kb_json_duality.sql
+      relativeToChangelogFile: false

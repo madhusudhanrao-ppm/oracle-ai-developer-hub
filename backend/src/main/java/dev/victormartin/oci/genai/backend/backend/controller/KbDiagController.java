@@ -83,6 +83,7 @@ public class KbDiagController {
         Map<String, Object> counts = new LinkedHashMap<>();
         Map<String, Object> byDoc = new LinkedHashMap<>();
         List<Map<String, Object>> lastDocs = new ArrayList<>();
+        List<Map<String, Object>> lastDocsDv = new ArrayList<>();
 
         try (Connection conn = dataSource.getConnection()) {
             // DB connectivity sanity check
@@ -108,6 +109,11 @@ public class KbDiagController {
                     "SELECT COUNT(*) " +
                             "FROM kb_chunks c JOIN kb_embeddings e ON e.chunk_id = c.id " +
                             "WHERE c.tenant_id = ? AND e.embedding IS NOT NULL", effectiveTenant));
+            // Duality View and JSON-first counts (if objects exist)
+            counts.put("docsJsonTenant", scalarLong(conn,
+                    "SELECT COUNT(*) FROM kb_documents_json WHERE tenant_id = ?", effectiveTenant));
+            counts.put("docsDvTenant", scalarLong(conn,
+                    "SELECT COUNT(*) FROM kb_documents_dv WHERE tenant_id = ?", effectiveTenant));
 
             // Doc-level (optional)
             if (docId != null && !docId.isBlank()) {
@@ -126,6 +132,8 @@ public class KbDiagController {
 
             // Last N docs for the tenant (to help identify recent ingests)
             lastDocs = queryLastDocs(conn, effectiveTenant, 5);
+            // Also list last N docs from Duality View (title comes from JSON)
+            lastDocsDv = queryLastDocsDv(conn, effectiveTenant, 5);
 
         } catch (SQLException e) {
             String msg = "DB error: " + e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -138,6 +146,7 @@ public class KbDiagController {
             result.put("byDoc", byDoc);
         }
         result.put("lastDocs", lastDocs);
+        result.put("lastDocsDv", lastDocsDv);
         return result;
     }
 
@@ -174,6 +183,30 @@ public class KbDiagController {
             }
         } catch (SQLException e) {
             log.debug("queryLastDocs failed: {}", e.getMessage());
+        }
+        return rows;
+    }
+
+    private List<Map<String, Object>> queryLastDocsDv(Connection conn, String tenantId, int limit) throws SQLException {
+        String sql = "SELECT doc_id, title " +
+                "FROM kb_documents_dv " +
+                "WHERE tenant_id = ? " +
+                "ORDER BY doc_id DESC " +
+                "FETCH FIRST ? ROWS ONLY";
+        List<Map<String, Object>> rows = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, tenantId);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("docId", rs.getString("doc_id"));
+                    row.put("title", rs.getString("title"));
+                    rows.add(row);
+                }
+            }
+        } catch (SQLException e) {
+            log.debug("queryLastDocsDv failed: {}", e.getMessage());
         }
         return rows;
     }
@@ -243,6 +276,8 @@ public class KbDiagController {
         try (Connection conn = dataSource.getConnection()) {
             Map<String, Object> tables = new LinkedHashMap<>();
             tables.put("KB_DOCUMENTS", tableInfo(conn, "KB_DOCUMENTS"));
+            tables.put("KB_DOCUMENTS_JSON", tableInfo(conn, "KB_DOCUMENTS_JSON"));
+            tables.put("KB_DOCUMENTS_DV", tableInfo(conn, "KB_DOCUMENTS_DV"));
             tables.put("KB_CHUNKS", tableInfo(conn, "KB_CHUNKS"));
             tables.put("KB_EMBEDDINGS", tableInfo(conn, "KB_EMBEDDINGS"));
             out.put("tables", tables);
@@ -262,11 +297,20 @@ public class KbDiagController {
     }
 
     private boolean tableExists(Connection conn, String tableName) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM user_tables WHERE table_name = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        // Check user tables
+        String sqlT = "SELECT COUNT(*) FROM user_tables WHERE table_name = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sqlT)) {
             ps.setString(1, tableName);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getLong(1) > 0;
+                if (rs.next() && rs.getLong(1) > 0) return true;
+            }
+        }
+        // Then check user views (duality view may register as a view)
+        String sqlV = "SELECT COUNT(*) FROM user_views WHERE view_name = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sqlV)) {
+            ps.setString(1, tableName);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && rs.getLong(1) > 0) return true;
             }
         }
         return false;
