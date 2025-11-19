@@ -6,7 +6,7 @@ We don’t use computers the way we used to. We moved from command lines to GUIs
 This repository provides a runnable blueprint:
 - Web UI: Oracle JET for an enterprise‑grade chat interface with upload, settings, and RAG toggle.
 - Service: Spring Boot backend with vendor‑aware calls to OCI Generative AI (Cohere, Meta, xAI).
-- Data: Oracle AI Database for durable chat history, memory (KV and long-form), telemetry, and a knowledge base (KB) for RAG.
+- Data: Oracle AI Database for durable chat history, memory (KV and long-form) and a knowledge base (KB) for RAG.
 
 ## The Data‑Model‑Service (DMS) Architecture
 

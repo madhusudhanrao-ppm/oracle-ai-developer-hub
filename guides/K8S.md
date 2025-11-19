@@ -6,7 +6,7 @@ This guide operationalizes the Data → Model → Service (DMS) architecture on 
 
 - Oracle AI Database for durable context, memory, telemetry, and Knowledge Base (KB) for RAG
 - OCI Generative AI for model inference (Cohere, Meta, xAI via Inference)
-- Spring Boot backend and Oracle JET web app on OKE (Oracle Container Engine for Kubernetes)
+- Spring Boot backend and Oracle JET web app on OKE (Oracle Kubernetes Engine )
 - Terraform + Kustomize for reproducible environments
 
 ![RAG on Kubernetes architecture: OKE, Spring Boot, Oracle JET, OCI Generative AI, Oracle AI Database](../images/architecture.png)
