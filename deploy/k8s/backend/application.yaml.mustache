@@ -18,7 +18,12 @@ spring:
   jpa:
     hibernate:
       use-new-id-generator-mappings: false
-      ddl-auto: update
+      ddl-auto: none
+    properties:
+      hibernate:
+        hbm2ddl:
+          auto: none
+    generate-ddl: false
   servlet:
     multipart:
       max-file-size: 100MB

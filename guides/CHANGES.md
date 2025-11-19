@@ -1,5 +1,20 @@
 # Changelog
 
+## How to Use This Changelog
+This changelog documents changes in reverse chronological order, building on previous versions. Each entry includes sections like Added, Changed, Fixed for modularity. Use it to track evolution and learn from updates. Cross-reference with README.md for overview and SERVICES_GUIDE.md for backend details.
+
+## [2025-11-04]
+### Added
+- UI: Added a visible Close button to the Settings drawer on mobile, allowing users to return to the main page.
+- Scripts: Added --target flag to scripts/setenv.mjs to scope setup to app, backend, or all (default: all).
+- DevRel: Added platform-specific articles on agent memory (Medium, dev.to, DataCamp) under devrel-writes/oci-genai-jet-ui/, enforcing “Oracle AI Database” branding.
+
+### Fixed
+- Backend: Replaced deprecated OCI Generative AI SDK constructor usage in `OCIGenAIService` with the supported builder API. No functional changes.
+
+### Build
+- Gradle: Observed a Gradle 8.x deprecation warning from build tooling (`LenientConfiguration.getArtifacts(Spec)`). Application code compiles cleanly. Refer to the Gradle 9.0 upgrade guide when updating plugins/Gradle.
+
 ## [2025-11-03]
 ### Changed
 - Updated branding in README to "Oracle AI Database"; removed legacy 23ai/26ai phrasing in keywords and branding mentions.
@@ -49,8 +64,8 @@ This project recently received multiple backend and frontend enhancements to sta
   - `kb_documents`, `kb_chunks`, `kb_embeddings` with `embedding VECTOR(1024, FLOAT32)`.
   - Multiple vector index creation attempts (HNSW/IVF and an older `USING ... WITH(...)` form) to cover DB variations.
 - Insertion of embeddings:
-  - Attempts `to_vector(?)` then `VECTOR(?)`.
-  - If both fail, inserts a row with `NULL` embedding so joins still produce snippets (fallback retrieval still works).
+  - Attempts `to_vector(?)` then `VECTOR(?)` with a JSON array literal
+  - If both fail, insert NULL embedding (joins still work; no vector search)
 
 ### Diagnostics endpoints
 - `GET /api/kb/diag?tenantId=default`
@@ -123,3 +138,7 @@ This project recently received multiple backend and frontend enhancements to sta
   - `chat.tsx`: switched noisy logs to debug.
   - `styles/app.css`: fixed chat input bar at bottom; added bottom padding for the list.
   - `libs/debug.ts`: new helper for opt-in debug logs.
+
+## Q&A
+Q: How do I contribute a new feature? A: See CONTRIBUTING.md for PR guidelines, then add an entry here under the appropriate section.
+Q: What does the 'Build' section cover? A: Non-functional updates to tooling or dependencies, like Gradle warnings, that don't affect runtime but improve development.

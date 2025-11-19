@@ -1,4 +1,4 @@
-# Backend Services Guide (LLM‑friendly)
+# Backend Services Guide
 
 This guide documents the backend service layer in a way that is friendly to both humans and LLM agents. For each service you will find:
 - Purpose: What it does in the system
@@ -11,11 +11,12 @@ This guide documents the backend service layer in a way that is friendly to both
 The services live under:
 backend/src/main/java/dev/victormartin/oci/genai/backend/backend/service
 
-Cross‑references:
+Cross-references:
 - RAG flow and API: RAG.md
 - Database schema and Liquibase: DATABASE.md
 - Models, vendors, parameters: MODELS.md
 - OKE/Kubernetes deployment: K8S.md
+- Build deps (Spring Boot 3.2.x, OCI SDK): build.gradle
 
 ## Service dependency map
 
@@ -434,6 +435,10 @@ See RAG.md and DATABASE.md for detailed troubleshooting and expected outputs.
   - Cohere: CohereChatRequest path
   - Meta: GenericChatRequest (omit presencePenalty)
   - xAI Grok: GenericChatRequest (omit presencePenalty, frequencyPenalty, topK)
-- Use temperature ≈ 0.0 for summarization, ≈ 0.5 for chat
+- Use temperature ≈ 0.0 for summarization, ≈0.5 for chat
 - Use topP for broader compatibility; manage maxTokens (~600) for cost/latency
 - If KB retrieval yields few/no results, answer with the provided fallback message to avoid hallucinations
+
+## Q&A
+Q: How does RagService handle fallbacks? A: If vectors fail, uses text search; see error cases.
+Q: What deps does this use? A: Spring Boot 3.2.x, OCI SDK (from build.gradle); see LOCAL.md for setup.

@@ -9,7 +9,9 @@ This guide operationalizes the Data → Model → Service (DMS) architecture on 
 - Spring Boot backend and Oracle JET web app on OKE (Oracle Container Engine for Kubernetes)
 - Terraform + Kustomize for reproducible environments
 
-![RAG on Kubernetes architecture: OKE, Spring Boot, Oracle JET, OCI Generative AI, Oracle AI Database](images/architecture.png)
+![RAG on Kubernetes architecture: OKE, Spring Boot, Oracle JET, OCI Generative AI, Oracle AI Database](../images/architecture.png)
+
+Cross-references: See LOCAL.md for local setup, DATABASE.md for schema.
 
 ## Table of Contents
 
@@ -23,13 +25,12 @@ This guide operationalizes the Data → Model → Service (DMS) architecture on 
   - [Generate and apply Kustomize overlays](#generate-and-apply-kustomize-overlays)
   - [Deploy to the OKE Kubernetes cluster](#deploy-to-the-oke-kubernetes-cluster)
   - [Expose and access the application (Kubernetes Ingress on OKE)](#expose-and-access-the-application-kubernetes-ingress-on-oke)
-  - [OCI authentication options on OKE (Workload Identity, Instance Principals)](#oci-authentication-options-on-oke-workload-identity-instance-principals)
-  - [Kubernetes operational guardrails](#kubernetes-operational-guardrails)
   - [Verification and health checks](#verification-and-health-checks)
   - [Troubleshooting and FAQ](#troubleshooting-and-faq)
   - [Cleanup](#cleanup)
   - [Notes](#notes)
   - [Keywords](#keywords)
+  - [Q\&A](#qa)
 
 ## Prerequisites
 
@@ -77,7 +78,7 @@ cd ../..
 cd deploy/terraform && terraform init && terraform apply --auto-approve && cd ../..
 ```
 
-After apply, a kubeconfig is generated at `deploy/terraform/generated/kubeconfig`.
+After apply, a kubeconfig is generated at `deploy/terraform/generated/kubeconfig`. Aligns with variables.tf (e.g., compartment_id, region).
 
 ## Build and publish container images to OCI Container Registry (OCIR)
 
@@ -133,21 +134,6 @@ echo $(kubectl get service \
 If empty, wait a few minutes and retry; provisioning may take time. Open the IP in your browser to access the web UI.
 
 Ingress manifests live under [deploy/k8s/ingress/](deploy/k8s/ingress/). For a custom domain, create a DNS A record pointing to the LoadBalancer IP and, if needed, configure TLS in your Ingress (see ingress manifests for examples).
-
-## OCI authentication options on OKE (Workload Identity, Instance Principals)
-
-- Workload Identity (recommended) or Instance Principals for the backend. See service account and RBAC in [deploy/k8s/backend/service-account.yaml](deploy/k8s/backend/service-account.yaml).
-- Avoid local file dependencies in cluster (use Kubernetes Secrets and ConfigMaps).
-- Configure `genai.region` and `compartment_id` via environment or application config.
-- Push/pull images via OCIR with proper auth; see [scripts/release.mjs](scripts/release.mjs).
-
-## Kubernetes operational guardrails
-
-- Vendor‑aware parameter handling (avoid sending unsupported params to specific models)
-- Telemetry via `interactions` table (latency, tokens, costs) for observability and budgeting
-- Resource requests/limits and optional HPA (add to kustomize if desired)
-- Pod Disruption Budgets for high availability
-- Secrets and ConfigMaps for environment separation and secure configuration
 
 ## Verification and health checks
 
@@ -217,3 +203,11 @@ npx zx scripts/clean.mjs
 ## Keywords
 
 Kubernetes, Oracle Kubernetes Engine, OKE, Oracle Cloud Infrastructure, OCI, OCI Generative AI, Autonomous Database, Oracle AI Database, RAG, Retrieval‑Augmented Generation, Terraform on OCI, Kustomize, Kubernetes Ingress, OCIR, Oracle JET, Spring Boot on Kubernetes, vector search, embeddings, ANN index, Workload Identity, Instance Principals
+
+## Q&A
+
+Q: How do I verify Terraform provisioning?  
+A: After apply, check outputs.tf for OKE cluster ID and kubeconfig path. Step 1: Run terraform output. Step 2: Test kubectl cluster-info.
+
+Q: What if LoadBalancer IP is not assigned?  
+A: Step 1: Wait 5-10 min. Step 2: Check kubectl describe svc -n ingress-nginx. Step 3: Verify OCI Networking permissions.

@@ -1,0 +1,39 @@
+myatp_medium = (description=(retry_count=0)(retry_delay=3)
+                 (address=(protocol=tcps)(port=1522)(host=localhost))
+                 (connect_data=(service_name=myatp_medium.adb.oraclecloud.com))(security=(SSL_SERVER_DN_MATCH=TRUE)(SSL_SERVER_CERT_DN="CN=3ff2d9ed074e")))
+
+myatp_high = (description=(retry_count=0)(retry_delay=3)
+                 (address=(protocol=tcps)(port=1522)(host=localhost))
+                 (connect_data=(service_name=myatp_high.adb.oraclecloud.com))(security=(SSL_SERVER_DN_MATCH=TRUE)(SSL_SERVER_CERT_DN="CN=3ff2d9ed074e")))
+
+myatp_low = (description=(retry_count=0)(retry_delay=3)
+                 (address=(protocol=tcps)(port=1522)(host=localhost))
+                 (connect_data=(service_name=myatp_low.adb.oraclecloud.com))(security=(SSL_SERVER_DN_MATCH=TRUE)(SSL_SERVER_CERT_DN="CN=3ff2d9ed074e")))
+
+myatp_tp = (description=(retry_count=0)(retry_delay=3)
+            (address=(protocol=tcps)(port=1522)(host=localhost))
+            (connect_data=(service_name=myatp_tp.adb.oraclecloud.com))(security=(SSL_SERVER_DN_MATCH=TRUE)(SSL_SERVER_CERT_DN="CN=3ff2d9ed074e")))
+
+myatp_tpurgent = (description=(retry_count=0)(retry_delay=3)
+                   (address=(protocol=tcps)(port=1522)(host=localhost))
+                   (connect_data=(service_name=myatp_tpurgent.adb.oraclecloud.com))(security=(SSL_SERVER_DN_MATCH=TRUE)(SSL_SERVER_CERT_DN="CN=3ff2d9ed074e")))
+
+myatp_medium_tls = (description=(retry_count=0)(retry_delay=3)
+                    (address=(protocol=tcps)(port=1521)(host=localhost))
+                    (connect_data=(service_name=myatp_medium.adb.oraclecloud.com))(security=(ssl_server_dn_match=no)))
+
+myatp_high_tls = (description=(retry_count=0)(retry_delay=3)
+                    (address=(protocol=tcps)(port=1521)(host=localhost))
+                    (connect_data=(service_name=myatp_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=no)))
+
+myatp_low_tls = (description=(retry_count=0)(retry_delay=3)
+                    (address=(protocol=tcps)(port=1521)(host=localhost))
+                    (connect_data=(service_name=myatp_low.adb.oraclecloud.com))(security=(ssl_server_dn_match=no)))
+
+myatp_tp_tls = (description=(retry_count=0)(retry_delay=3)
+                (address=(protocol=tcps)(port=1521)(host=localhost))
+                (connect_data=(service_name=myatp_tp.adb.oraclecloud.com))(security=(ssl_server_dn_match=no)))
+
+myatp_tpurgent_tls = (description=(retry_count=0)(retry_delay=3)
+                      (address=(protocol=tcps)(port=1521)(host=localhost))
+                      (connect_data=(service_name=myatp_tpurgent.adb.oraclecloud.com))(security=(ssl_server_dn_match=no)))

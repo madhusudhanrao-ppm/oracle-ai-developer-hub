@@ -41,6 +41,34 @@ public class OCIGenAIService {
         @Autowired
         private GenAIModelsService genAIModelsService;
 
+        // Cache model list to reduce repeated getModels() calls
+        private volatile java.util.List<GenAiModel> cachedModels;
+        private volatile long cachedModelsRefreshedAtNanos = 0L;
+        private static final long MODELS_CACHE_TTL_NANOS = java.util.concurrent.TimeUnit.MINUTES.toNanos(5);
+
+        private java.util.List<GenAiModel> getCachedModels() {
+                long now = System.nanoTime();
+                java.util.List<GenAiModel> local = cachedModels;
+                if (local == null || (now - cachedModelsRefreshedAtNanos) > MODELS_CACHE_TTL_NANOS) {
+                        synchronized (this) {
+                                local = cachedModels;
+                                if (local == null || (now - cachedModelsRefreshedAtNanos) > MODELS_CACHE_TTL_NANOS) {
+                                        try {
+                                                local = genAIModelsService.getModels();
+                                                cachedModels = local;
+                                                cachedModelsRefreshedAtNanos = System.nanoTime();
+                                        } catch (RuntimeException e) {
+                                                log.warn("Failed to refresh models cache: {}", e.getMessage());
+                                                // Fall back to previous cache if available
+                                                if (cachedModels == null) throw e;
+                                                local = cachedModels;
+                                        }
+                                }
+                        }
+                }
+                return local;
+        }
+
         // Model response with usage/cost information
         public static class ModelResponse {
                 private final String content;
@@ -61,7 +89,7 @@ public class OCIGenAIService {
 
         public ModelResponse resolvePromptWithUsage(String input, String modelId, boolean finetune, boolean summarization) {
 
-                List<GenAiModel> models = genAIModelsService.getModels();
+                List<GenAiModel> models = getCachedModels();
                 GenAiModel currentModel = models.stream()
                         .filter(m-> modelId.equals(m.id()))
                         .findFirst()
@@ -99,7 +127,7 @@ public class OCIGenAIService {
                                 List<ChatContent> contents = new ArrayList<>();
                                 contents.add(content);
                                 List<Message> messages = new ArrayList<>();
-                                Message message = new UserMessage(contents, "user");
+                                Message message = UserMessage.builder().content(contents).build();
                                 messages.add(message);
                                 GenericChatRequest genericChatRequest = GenericChatRequest.builder()
                                         .messages(messages)
@@ -123,7 +151,7 @@ public class OCIGenAIService {
                                 List<ChatContent> xaiContents = new ArrayList<>();
                                 xaiContents.add(xaiContent);
                                 List<Message> xaiMessages = new ArrayList<>();
-                                Message xaiMessage = new UserMessage(xaiContents, "user");
+                                Message xaiMessage = UserMessage.builder().content(xaiContents).build();
                                 xaiMessages.add(xaiMessage);
                                 GenericChatRequest xaiGenericChatRequest = GenericChatRequest.builder()
                                         .messages(xaiMessages)
@@ -146,7 +174,7 @@ public class OCIGenAIService {
                                 List<ChatContent> fbContents = new ArrayList<>();
                                 fbContents.add(fbContent);
                                 List<Message> fbMessages = new ArrayList<>();
-                                Message fbMessage = new UserMessage(fbContents, "user");
+                                Message fbMessage = UserMessage.builder().content(fbContents).build();
                                 fbMessages.add(fbMessage);
                                 GenericChatRequest fbGenericChatRequest = GenericChatRequest.builder()
                                         .messages(fbMessages)
@@ -225,7 +253,7 @@ public class OCIGenAIService {
 
         public String resolvePrompt(String input, String modelId, boolean finetune, boolean summarization) {
 
-                List<GenAiModel> models = genAIModelsService.getModels();
+                List<GenAiModel> models = getCachedModels();
                 GenAiModel currentModel = models.stream()
                         .filter(m-> modelId.equals(m.id()))
                         .findFirst()
@@ -263,7 +291,7 @@ public class OCIGenAIService {
                                 List<ChatContent> contents = new ArrayList<>();
                                 contents.add(content);
                                 List<Message> messages = new ArrayList<>();
-                                Message message = new UserMessage(contents, "user");
+                                Message message = UserMessage.builder().content(contents).build();
                                 messages.add(message);
                                 GenericChatRequest genericChatRequest = GenericChatRequest.builder()
                                         .messages(messages)
@@ -287,7 +315,7 @@ public class OCIGenAIService {
                                 List<ChatContent> xaiContents = new ArrayList<>();
                                 xaiContents.add(xaiContent);
                                 List<Message> xaiMessages = new ArrayList<>();
-                                Message xaiMessage = new UserMessage(xaiContents, "user");
+                                Message xaiMessage = UserMessage.builder().content(xaiContents).build();
                                 xaiMessages.add(xaiMessage);
                                 GenericChatRequest xaiGenericChatRequest = GenericChatRequest.builder()
                                         .messages(xaiMessages)
@@ -310,7 +338,7 @@ public class OCIGenAIService {
                                 List<ChatContent> fbContents = new ArrayList<>();
                                 fbContents.add(fbContent);
                                 List<Message> fbMessages = new ArrayList<>();
-                                Message fbMessage = new UserMessage(fbContents, "user");
+                                Message fbMessage = UserMessage.builder().content(fbContents).build();
                                 fbMessages.add(fbMessage);
                                 GenericChatRequest fbGenericChatRequest = GenericChatRequest.builder()
                                         .messages(fbMessages)

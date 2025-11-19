@@ -18,22 +18,43 @@ $.verbose = false;
 clear();
 console.log("Set up environment...");
 
+const argv = process.argv.slice(2);
+let target = process.env.TARGET || "all";
+const ti = argv.indexOf("--target");
+if (ti !== -1 && argv[ti + 1]) {
+  target = argv[ti + 1];
+}
+if (!["app", "backend", "all"].includes(target)) {
+  target = "all";
+}
+console.log(`Target: ${target}`);
+
 const projectName = "genai";
 
 const config = new Configstore(projectName, { projectName });
 
-await selectProfile();
-const profile = config.get("profile");
-const tenancyId = config.get("tenancyId");
+let profile;
+let tenancyId;
+let regionName;
+let compartmentId;
 
-await setNamespaceEnv();
-await setRegionEnv();
-const regionName = config.get("regionName");
-await setCompartmentEnv();
-const compartmentId = config.get("compartmentId");
+if (target !== "app") {
+  await selectProfile();
+  profile = config.get("profile");
+  tenancyId = config.get("tenancyId");
 
-await createSSHKeys(projectName);
-await createCerts();
+  await setNamespaceEnv();
+  await setRegionEnv();
+  regionName = config.get("regionName");
+  await setCompartmentEnv();
+  compartmentId = config.get("compartmentId");
+
+  await createSSHKeys(projectName);
+}
+
+if (target !== "backend") {
+  await createCerts();
+}
 
 console.log(`\nConfiguration file saved in: ${chalk.green(config.path)}`);
 
@@ -178,5 +199,7 @@ async function setLatestGenAIModel(capability, configKey) {
   }
 }
 
-await setLatestGenAIModel("CHAT", "genAiModelChat");
-await setLatestGenAIModel("CHAT", "genAiModelSummarization");
+if (target !== "app") {
+  await setLatestGenAIModel("CHAT", "genAiModelChat");
+  await setLatestGenAIModel("CHAT", "genAiModelSummarization");
+}

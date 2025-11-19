@@ -7,6 +7,7 @@ import "ojs/ojinputsearch";
 import "oj-c/message-toast";
 import "oj-c/drawer-popup";
 import "oj-c/select-single";
+import "oj-c/button";
 import "ojs/ojlistitemlayout";
 import "ojs/ojhighlighttext";
 import MutableArrayDataProvider = require("ojs/ojmutablearraydataprovider");
@@ -369,16 +370,29 @@ const Content = ({ settingsOpened, setSettingsOpened, theme, setTheme, language,
         onojBeforeClose={handleDrawerState}
         aria-label="Settings Drawer"
       >
-        <Settings
-          aiServiceType={serviceType}
-          ragEnabled={ragEnabled}
-          theme={theme}
-          aiServiceChange={serviceTypeChangeHandler}
-          ragToggle={setRagEnabled}
-          themeChange={setTheme}
-          modelIdChange={modelIdChangeHandler}
-          onLanguageChange={setLanguage}
-        />
+        <>
+          <div class="oj-sm-padding-2x oj-flex oj-sm-align-items-center">
+            <oj-c-button
+              label="Close"
+              display="all"
+              chroming="borderless"
+              onojAction={() => setSettingsOpened(false)}
+            >
+              <span slot="startIcon" class="oj-ux-ico-close"></span>
+            </oj-c-button>
+            <h3 class="oj-typography-heading-sm oj-sm-margin-0 oj-sm-margin-start-2x">Settings</h3>
+          </div>
+          <Settings
+            aiServiceType={serviceType}
+            ragEnabled={ragEnabled}
+            theme={theme}
+            aiServiceChange={serviceTypeChangeHandler}
+            ragToggle={setRagEnabled}
+            themeChange={setTheme}
+            modelIdChange={modelIdChangeHandler}
+            onLanguageChange={setLanguage}
+          />
+        </>
       </oj-c-drawer-popup>
       <div class="oj-flex-bar oj-flex-item demo-header oj-sm-12">
         <oj-c-message-toast

@@ -5,26 +5,30 @@ Direct answer: This repo ships a complete RAG app (Oracle JET UI → Spring Boot
 
 <!-- keywords: oracle ai database, vector search, rag, json relational duality views, select ai, oci generative ai, oracle jet, spring boot, kubernetes, oke, pdf rag, knowledge base -->
 
-Updated for Oracle AI Database and the latest OCI Generative AI model catalog.
+Updated for Oracle AI Database and the latest OCI Generative AI model catalog, with agent memory, telemetry, and production-ready RAG.
 
 We don’t use computers the way we used to. We moved from command lines to GUIs, from click‑and‑type to touch and voice—and now to assistants that understand intent. The next leap isn’t a new button; it’s software that adapts to people.
 
 Shipping that shift in the enterprise takes more than calling an LLM API. It requires architecture, guardrails, and solid foundations: durable context, observability, safe parameters, and a UI. A decade of shipping software taught a simple lesson: people don’t want more features; they want more understanding.
 
 This repository provides a runnable blueprint:
-- Web UI: Oracle JET for an enterprise‑grade chat interface with upload and settings.
+- Web UI: Oracle JET for an enterprise‑grade chat interface with upload, settings, and RAG toggle.
 - Service: Spring Boot backend with vendor‑aware calls to OCI Generative AI (Cohere, Meta, xAI).
-- Data: Oracle AI Database for durable chat history, memory, telemetry, and a knowledge base (KB) for RAG.
+- Data: Oracle AI Database for durable chat history, memory (KV and long-form), telemetry, and a knowledge base (KB) for RAG.
 
 Quick links
-- Frontend deep dive (Oracle JET): [JET.md](JET.md)
-- Cloud‑native deployment (OKE, Terraform, Kustomize): [K8S.md](K8S.md)
-- RAG pipeline and usage: [RAG.md](RAG.md)
-- Database schema and Liquibase: [DATABASE.md](DATABASE.md)
-- Models and parameters (vendor‑aware): [MODELS.md](MODELS.md)
-- Backend services guide: [SERVICES_GUIDE.md](SERVICES_GUIDE.md)
-- Troubleshooting: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-- FAQ: [FAQ.md](FAQ.md)
+- Frontend deep dive (Oracle JET): [JET.md](guides/JET.md)
+- Cloud‑native deployment (OKE, Terraform, Kustomize): [K8S.md](guides/K8S.md)
+- RAG pipeline and usage: [RAG.md](guides/RAG.md)
+- Database schema and Liquibase: [DATABASE.md](guides/DATABASE.md)
+- Models and parameters (vendor‑aware): [MODELS.md](guides/MODELS.md)
+- Backend services guide: [SERVICES_GUIDE.md](guides/SERVICES_GUIDE.md)
+- Troubleshooting: [TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md)
+- FAQ: [FAQ.md](guides/FAQ.md)
+- Local development: [LOCAL.md](guides/LOCAL.md)
+- Security: [SECURITY.md](guides/SECURITY.md)
+- Contributing: [CONTRIBUTING.md](guides/CONTRIBUTING.md)
+- Changes: [CHANGES.md](guides/CHANGES.md)
 
 ## At a glance
 - AI‑driven and distinct: Oracle AI Database is vector‑native and integrates governed AI patterns
@@ -36,24 +40,26 @@ Quick links
 ## The Data‑Model‑Service (DMS) Architecture
 
 - Data Layer: Oracle AI Database
-  - Durable chat history (conversations, messages)
-  - Memory (key/value and long‑form)
-  - Telemetry (interactions: latency, tokens, cost)
-  - Knowledge Base (KB) tables enabling Retrieval‑Augmented Generation
+  - Agent memory: conversations and messages tables for session history; memory_kv for structured state (e.g., preferences, tool outputs); optional memory_long for summaries.
+  - Telemetry: interactions table for latency, tokens, and cost tracking.
+  - Knowledge Base (KB): tables for documents, chunks, and embeddings enabling Retrieval‑Augmented Generation (RAG).
+  - Schema managed via Liquibase for safe evolution (see DATABASE.md).
 
 - Model Layer: OCI Generative AI
-  - Inference with Cohere, Meta, and xAI models
-  - Prompt shaping and grounding via RAG
-  - Vendor‑aware parameter validation to avoid invalid‑argument errors
+  - Inference with Cohere, Meta, and xAI models via vendor-aware services (avoids unsupported params like presencePenalty for Grok).
+  - Prompt shaping and grounding via RAG with fallback to text search.
+  - Model discovery and catalog for dynamic listing (see MODELS.md).
 
 - Service Layer: Spring Boot
-  - REST + WebSocket endpoints for chat, RAG, PDF upload, model discovery
-  - Liquibase migrations for schema evolution
-  - OCI auth: local config, OKE Workload Identity, or Instance Principals
+  - REST + WebSocket endpoints for chat, RAG, PDF upload, model discovery.
+  - Key services: OCIGenAIService (chat), RagService (end-to-end RAG), KbIngestService (chunk/embed/insert), MemoryService (KV and rolling summaries).
+  - Liquibase migrations for schema evolution.
+  - OCI auth: local config, OKE Workload Identity, or Instance Principals (see SERVICES_GUIDE.md).
 
 - Web UI: Oracle JET
-  - Chat, Upload, Settings (Use RAG)
-  - Opt‑in debug logs, fixed input bar UX, database keepalive
+  - Components for chat, upload, settings (model select, RAG toggle), and summaries.
+  - WebSocket/STOMP for real-time; opt-in debug logs; database keepalive.
+  - Fixed input bar and accessible UX (see JET.md).
 
 ### Architecture (Mermaid)
 
@@ -61,21 +67,21 @@ Alt: Oracle JET UI ↔ Spring Boot ↔ Oracle AI Database (KB, telemetry, memory
 
 ```mermaid
 flowchart LR
-  subgraph "Web UI<br/>(Oracle JET)"
-    A["Chat / Upload<br/>Settings"]
+  subgraph "Web UI (Oracle JET)" style Web UI fill:#e1f5fe,stroke:#2196f3,color:#000
+    A["Chat / Upload / Settings<br/>(RAG Toggle, Model Select)"]
   end
-  subgraph "Service<br/>(Spring Boot)"
-    B1["Controllers:<br/>GenAI, Upload, Models"]
-    B2["Services:<br/>OCIGenAI, Rag, Models"]
-    B3["Liquibase<br/>Migrations"]
+  subgraph "Service (Spring Boot)" style Service fill:#f3e5f5,stroke:#9c27b0,color:#000
+    B1["Controllers: GenAI, Upload, Models"]
+    B2["Services: OCIGenAI, Rag, KbIngest, Memory"]
+    B3["Liquibase Migrations"]
   end
-  subgraph "Data<br/>(Oracle AI Database via ADB)"
-    D1["Conversations / Messages<br/>Memory"]
-    D2["Telemetry:<br/>interactions"]
-    D3["KB Tables<br/>for RAG"]
+  subgraph "Data (Oracle AI Database)" style Data fill:#e8f5e8,stroke:#4caf50,color:#000
+    D1["Conversations / Messages<br/>Memory (KV + Long)"]
+    D2["Telemetry: Interactions"]
+    D3["KB Tables for RAG<br/>(Documents, Chunks, Embeddings)"]
   end
-  subgraph "Models<br/>(OCI GenAI)"
-    C1["Cohere / Meta / xAI<br/>via Inference"]
+  subgraph "Models (OCI GenAI)" style Models fill:#fff3e0,stroke:#ff9800,color:#000
+    C1["Cohere / Meta / xAI<br/>(Vendor-Aware Inference)"]
   end
   A <-->|"REST & WebSocket"| B1
   B1 --> B2
@@ -83,17 +89,14 @@ flowchart LR
   B2 <--> D3
   B2 <--> C1
   B2 --> D2
-  style A fill:#e1f5fe
-  style B2 fill:#f3e5f5
-  style D1 fill:#e8f5e8
-  style C1 fill:#fff3e0
 ```
 
 ## Why this works
 
-- Modularity: Clear separation of concerns per layer with evolution paths.
-- Enterprise‑ready: Database‑backed context, schema migrations, auditable usage.
-- Developer‑friendly: Spring Boot + Oracle JET; simple scripts for release and deploy.
+- Modularity: Clear separation of concerns per layer with evolution paths (e.g., additive Liquibase changesets).
+- Enterprise‑ready: Database‑backed context with KV/long-form memory, schema migrations, auditable usage via telemetry.
+- Developer‑friendly: Spring Boot + Oracle JET; simple scripts for release and deploy; vendor-aware guards prevent invalid requests.
+- Enhanced RAG: Vector search with text fallback; citations in responses; diagnostics for embedding health.
 
 ### Competitive context (respectful)
 For this exact app, non‑Oracle stacks typically require:
@@ -114,15 +117,15 @@ Oracle AI Database co‑locates vectors, SQL, and JSON, reducing integration deb
 - Observability: telemetry tables and /api/kb/diag* endpoints help track latency, token usage, and embedding health.
 - Select AI pattern: bring AI to governed data and roles (see RAG.md). Keep inference near the data with auditable access paths.
 
-Tip: need internal wiring and dependencies? See the Backend Services Guide for a full dependency map and diagnostics: SERVICES_GUIDE.md
+Tip: need internal wiring and dependencies? See the Backend Services Guide for a full dependency map and diagnostics: [SERVICES_GUIDE.md](guides/SERVICES_GUIDE.md)
 
 ## Features
 
-- Chat and summarization with multiple vendors/models.
-- RAG over your PDFs (upload → index → ask).
-- Telemetry and audit trails for model calls.
-- Long‑term memory and key/value memory per conversation.
-- Liquibase‑managed schema for a reliable data layer.
+- Chat and summarization with multiple vendors/models and vendor-aware parameters.
+- RAG over your PDFs (upload → index → ask) with citations and fallback handling.
+- Telemetry and audit trails for model calls (interactions table).
+- Long‑term memory (rolling summaries) and key/value memory per conversation.
+- Liquibase‑managed schema for a reliable data layer with safe evolution.
 
 ## Local quickstart
 
@@ -170,6 +173,27 @@ cd ../app
 npm ci
 npm run serve
 # http://localhost:8000
+
+## Local Development with Isolated Scripts
+
+To run the application locally without affecting the production setup, use the scripts in the `local/` directory. These scripts handle DB startup, migrations, and app running in an isolated manner, using runtime overrides and temporary files.
+
+Prerequisites for local:
+- Docker (for ADB Free container and Liquibase)
+- Run `./gradlew build` in the root `backend/` to download dependencies (Oracle JDBC drivers) to your Gradle cache.
+
+Steps:
+1. Start the DB: `cd local && ./start_db.sh --clean` (starts ADB container and prepares wallet in local/adb_wallet).
+2. Run migrations: `./migrate_db.sh` (uses Docker Liquibase with project changelog and local wallet; applies schema to the local DB).
+3. Run the app: `./run_app.sh --backend-only` (starts backend with Hikari overrides and admin creds; optional --backend-only skips frontend).
+
+Notes:
+- All local artifacts (wallet, logs, overrides) are in `local/`.
+- Production backend/ remains untouched.
+- For frontend: If not using --backend-only, it starts at http://localhost:8000.
+- Cleanup: Ctrl+C stops processes; rerun with --clean for fresh start.
+
+See [LOCAL.md](guides/LOCAL.md) for more details and troubleshooting.
 ```
 
 ## RAG: upload and ask
@@ -196,9 +220,9 @@ curl -X POST http://localhost:8080/api/genai/rag \
 - Provision OKE + ADB with Terraform (deploy/terraform).
 - Build/push images to OCIR using scripts/release.mjs (tags include git sha).
 - Generate Kustomize overlays with scripts/kustom.mjs (env‑specific config).
-- Create an ADB wallet secret; mount and set TNS_ADMIN in backend (see DATABASE.md).
+- Create an ADB wallet secret; mount and set TNS_ADMIN in backend (see [DATABASE.md](guides/DATABASE.md)).
 - Apply deploy/k8s/overlays/prod and verify ingress endpoint.
-- Full guide: [K8S.md](K8S.md)
+- Full guide: [K8S.md](guides/K8S.md)
 
 ## LLM optimization patterns
 
@@ -211,10 +235,4 @@ curl -X POST http://localhost:8080/api/genai/rag \
   Q: How to parse data? A: Use the backend’s PDF endpoint to extract and chunk, then persist to KB tables.
 
 - Annotate code with purpose, inputs, outputs.
-- Use Mermaid for architecture and numbered steps for reproducibility.
-
-## License
-
-Licensed under the Universal Permissive License (UPL), Version 1.0. See [LICENSE](LICENSE).
-
-ORACLE AND ITS AFFILIATES DO NOT PROVIDE ANY WARRANTY WHATSOEVER, EXPRESS OR IMPLIED, FOR ANY SOFTWARE, MATERIAL OR CONTENT OF ANY KIND CONTAINED OR PRODUCED WITHIN THIS REPOSITORY, AND IN PARTICULAR SPECIFICALLY DISCLAIM ANY AND ALL IMPLIED WARRANTIES OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY, AND FITNESS FOR A PARTICULAR PURPOSE.  FURTHERMORE, ORACLE AND ITS AFFILIATES DO NOT REPRESENT THAT ANY CUSTOMARY SECURITY REVIEW HAS BEEN PERFORMED WITH RESPECT TO ANY SOFTWARE, MATERIAL OR CONTENT CONTAINED OR PRODUCED WITHIN THIS REPOSITORY. IN ADDITION, AND WITHOUT LIMITING THE FOREGOING, THIRD PARTIES MAY HAVE POSTED SOFTWARE, MATERIAL OR CONTENT TO THIS REPOSITORY WITHOUT ANY REVIEW. USE AT YOUR OWN RISK.
+- Use

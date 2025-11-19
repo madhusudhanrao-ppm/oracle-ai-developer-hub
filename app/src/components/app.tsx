@@ -14,7 +14,7 @@ const convoUUID = window.crypto.getRandomValues(tempArray);
 export const ConvoCtx = createContext("");
 
 export const App = registerCustomElement("app-root", (props: Props) => {
-  props.appName = "Generative AI JET UI";
+  props.appName = "Oracle AI";
   const [settingsOpened, setSettingsOpened] = useState<boolean>(false);
   const [theme, setTheme] = useState<string>("light");
   const [language, setLanguage] = useState<string>("english");

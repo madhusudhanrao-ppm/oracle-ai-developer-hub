@@ -1,7 +1,5 @@
 package dev.victormartin.oci.genai.backend.backend.controller;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -23,10 +21,10 @@ import dev.victormartin.oci.genai.backend.backend.data.Conversation;
 import dev.victormartin.oci.genai.backend.backend.data.ConversationRepository;
 import dev.victormartin.oci.genai.backend.backend.data.InteractionEvent;
 import dev.victormartin.oci.genai.backend.backend.data.InteractionEventRepository;
-import dev.victormartin.oci.genai.backend.backend.data.MemoryLong;
 import dev.victormartin.oci.genai.backend.backend.data.MemoryLongRepository;
 import dev.victormartin.oci.genai.backend.backend.data.Message;
 import dev.victormartin.oci.genai.backend.backend.data.MessageRepository;
+import dev.victormartin.oci.genai.backend.backend.service.MemoryContextBuilder;
 import dev.victormartin.oci.genai.backend.backend.service.MemoryService;
 import dev.victormartin.oci.genai.backend.backend.service.OCIGenAIService;
 
@@ -43,6 +41,7 @@ public class PromptController {
     private final InteractionEventRepository interactionEventRepository;
     private final MemoryLongRepository memoryLongRepository;
     private final MemoryService memoryService;
+    private final MemoryContextBuilder memoryContextBuilder;
 
     @Autowired
     OCIGenAIService genAI;
@@ -52,33 +51,17 @@ public class PromptController {
                             InteractionEventRepository interactionEventRepository,
                             MemoryLongRepository memoryLongRepository,
                             MemoryService memoryService,
+                            MemoryContextBuilder memoryContextBuilder,
                             OCIGenAIService genAI) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.interactionEventRepository = interactionEventRepository;
         this.memoryLongRepository = memoryLongRepository;
         this.memoryService = memoryService;
+        this.memoryContextBuilder = memoryContextBuilder;
         this.genAI = genAI;
     }
 
-    private String buildContext(String summary, java.util.List<Message> recentAsc) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("[Memory]\n");
-        if (summary != null && !summary.isBlank()) {
-            sb.append(summary.trim()).append("\n\n");
-        } else {
-            sb.append("(none)\n\n");
-        }
-        sb.append("[Recent messages]\n");
-        for (Message m : recentAsc) {
-            String role = m.getRole() == null ? "unknown" : m.getRole();
-            String content = m.getContent() == null ? "" : m.getContent();
-            if (content.length() > 1000) content = content.substring(0, 1000) + "…";
-            sb.append("- ").append(role).append(": ").append(content).append("\n");
-        }
-        sb.append("\n");
-        return sb.toString();
-    }
 
     @MessageMapping("/prompt")
     @SendToUser("/queue/answer")
@@ -112,21 +95,8 @@ public class PromptController {
             Message mUser = new Message(UUID.randomUUID().toString(), conversationId, "user", promptEscaped);
             messageRepository.save(mUser);
 
-            // build conversational context
-            List<Message> recentDesc = messageRepository.findTop20ByConversationIdOrderByCreatedAtDesc(conversationId);
-            List<Message> recentAsc = new ArrayList<>();
-            if (recentDesc != null && !recentDesc.isEmpty()) {
-                for (int i = recentDesc.size() - 1; i >= 0; i--) {
-                    recentAsc.add(recentDesc.get(i));
-                }
-            }
-            String summary = null;
-            try {
-                summary = memoryLongRepository.findById(conversationId)
-                        .map(MemoryLong::getSummaryText)
-                        .orElse(null);
-            } catch (Exception ignore) {}
-            String context = buildContext(summary, recentAsc);
+            // build conversational context using token-bounded builder
+            String context = memoryContextBuilder.buildContext(conversationId, "default", activeModel);
             String modelInput = context + "[User]\n" + promptEscaped;
 
             // call model (capture usage if available)

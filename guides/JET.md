@@ -4,6 +4,29 @@ This UI turns the Data → Model → Service (DMS) architecture into a usable as
 
 We moved from command lines to GUIs, from click-and-type to touch and voice—and now to assistants that understand intent. This frontend is the “understanding surface” for the blueprint: Oracle JET on the web, Spring Boot in the middle, OCI Generative AI for models, and Oracle AI Database for durable context and retrieval.
 
+Cross-references: See LOCAL.md for setup, SERVICES_GUIDE.md for backend APIs.
+
+## Component Diagram (Mermaid)
+
+```mermaid
+graph TD
+  A[app.tsx - Root Layout] --> B[header.tsx - Header]
+  A --> C[content/ - Main Components]
+  C --> D[chat.tsx - Chat Transcript/Input]
+  C --> E[upload.tsx - PDF Upload]
+  C --> F[settings.tsx - Model Select/RAG Toggle]
+  C --> G[summary.tsx - Summary Panel]
+  C --> H[stomp-interface.tsx - WebSocket/STOMP]
+  C --> I[websocket-interface.tsx - Alternative WS]
+  subgraph Libs
+    J[debug.ts - Opt-in Logging]
+    K[memory.ts - Memory Utils]
+  end
+  D --> H
+  style A fill:#e1f5fe,stroke:#2196f3
+  style C fill:#f3e5f5,stroke:#9c27b0
+```
+
 ## Why JET for assistants
 
 - Enterprise-ready components, theming, and accessibility
@@ -13,17 +36,19 @@ We moved from command lines to GUIs, from click-and-type to touch and voice—an
 
 ## App structure (selected)
 
-- app/src/components/app.tsx — root layout and routing
-- app/src/components/content/chat.tsx — chat transcript and input; integrates with backend chat/RAG
-- app/src/components/content/upload.tsx — PDF upload to /api/upload
-- app/src/components/content/settings.tsx — model selection, Use-RAG toggle, parameters
-- app/src/components/content/summary.tsx — summary panel (example of model-adjacent UX)
-- app/src/components/content/stomp-interface.tsx — WebSocket/STOMP integration
-- app/src/components/content/websocket-interface.tsx — alternative WebSocket interface
-- app/src/libs/debug.ts — opt-in debug logging via localStorage.debug === "1"
-- app/src/styles/app.css — layout, fixed input bar, list padding
-- app/src/index.ts — application bootstrap
-- app/src/index.html — base HTML
+- `app/src/components/app.tsx` — root layout and routing
+- `app/src/components/content/chat.tsx` — chat transcript and input; integrates with backend chat/RAG
+- `app/src/components/content/upload.tsx` — PDF upload to /api/upload
+- `app/src/components/content/settings.tsx` — model selection, Use-RAG toggle, parameters
+- `app/src/components/content/summary.tsx` — summary panel (example of model-adjacent UX)
+- `app/src/components/content/stomp-interface.tsx` — WebSocket/STOMP integration
+- `app/src/components/content/websocket-interface.tsx` — alternative WebSocket interface
+- `app/src/libs/debug.ts` — opt-in debug logging via localStorage.debug === "1"
+- `app/src/styles/app.css` — layout, fixed input bar, list padding
+- `app/src/index.ts` — application bootstrap
+- `app/src/index.html` — base HTML
+
+Aligns with package.json: Oracle JET 19.x, Preact, TypeScript 5.x.
 
 ## Behavior and logging
 
@@ -39,11 +64,11 @@ We moved from command lines to GUIs, from click-and-type to touch and voice—an
 
 ## Backend interface (representative)
 
-- POST /api/genai/chat — freeform chat (vendor-aware parameters)
-- POST /api/genai/rag — RAG-grounded responses using KB tables
-- GET /api/genai/models — enumerate available models
-- POST /api/upload — upload PDFs; server extracts/indexes for RAG
-- GET /api/kb/diag — diagnostics/keepalive for database connection
+- `POST /api/genai/chat` — freeform chat (vendor-aware parameters)
+- `POST /api/genai/rag` — RAG-grounded responses using KB tables
+- `GET /api/genai/models` — enumerate available models
+- `POST /api/upload` — upload PDFs; server extracts/indexes for RAG
+- `GET /api/kb/diag` — diagnostics/keepalive for database connection
 
 See also:
 - RAG pipeline and usage: RAG.md
@@ -68,8 +93,8 @@ npm run serve
 ```
 
 Default dev ports
-- Backend: 8080
-- Web UI: 8000
+- `Backend: 8080`
+- `Web UI: 8000`
 
 ## Configuration
 
@@ -92,23 +117,6 @@ Default dev ports
 - Theming/icons: adjust app/src/styles and Oracle JET theme variables
 - Markdown rendering: see custom md-wrapper and oj-ref-marked components under app/src/components
 
-## LLM-friendly documentation patterns
-
-- Numbered flows for tasks and reproducible steps
-- JSON request/response samples inline for quick testing
-- Comments and code annotations explaining intent, inputs, outputs
-- Mermaid diagrams in the main README for architecture visualization
-- Q&A pairs for RAG verification scenarios
-
-Example request payload (chat with RAG enabled)
-```json
-{
-  "question": "Summarize section 2 and list key decisions.",
-  "modelId": "ocid1.generativeaimodel.oc1..exampleuniqueID",
-  "useRag": true
-}
-```
-
 ## Troubleshooting
 
 - Unknown host or CORS in local dev: ensure backend is running on http://localhost:8080 and UI on http://localhost:8000
@@ -124,6 +132,15 @@ Example request payload (chat with RAG enabled)
 - Models and parameters: MODELS.md
 - Database schema and Liquibase: DATABASE.md
 - Troubleshooting: TROUBLESHOOTING.md
+
+## Q&A
+Q: How do I add a new component?  
+
+- Step 1: Create file in app/src/components/content/.  
+- Step 2: Import and route in app.tsx.  
+- Step 3: Test with npm run serve.
+  
+Q: What deps does the frontend use? A: Oracle JET 19.x, Preact, TypeScript (from package.json); see LOCAL.md for npm ci.
 
 ## License
 

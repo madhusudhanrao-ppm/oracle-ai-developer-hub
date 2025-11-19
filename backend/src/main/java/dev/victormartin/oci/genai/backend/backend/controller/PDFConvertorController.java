@@ -1,9 +1,13 @@
 package dev.victormartin.oci.genai.backend.backend.controller;
 
-
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -51,6 +55,83 @@ public class PDFConvertorController {
     @Autowired
     private InteractionRepository interactionRepository;
 
+    private String summarizeLargeTextFile(File file, String modelId) throws IOException {
+        final int CHUNK_SIZE = 16_000;     // characters per chunk
+        final int MAX_CHUNKS = 30;         // max number of chunks
+        final int MAX_CHARS = 400_000;     // hard cap on processed characters
+
+        List<String> chunkSummaries = new ArrayList<>();
+        int processedChars = 0;
+        boolean truncated = false;
+
+        try (BufferedReader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+            StringBuilder chunk = new StringBuilder(CHUNK_SIZE + 1024);
+            String line;
+            while ((line = reader.readLine()) != null) {
+                int nextLen = line.length() + 1; // include newline
+                // Stop if we reached overall cap
+                if (processedChars + nextLen > MAX_CHARS) {
+                    truncated = true;
+                    // flush what we have in the current chunk if non-empty
+                    if (chunk.length() > 0) {
+                        String summary = ociGenAIService.summaryText(chunk.toString(), modelId, false);
+                        chunkSummaries.add(summary);
+                        if (chunkSummaries.size() % 5 == 0) {
+                            log.info("Large file summarization progress: {} chunks summarized (reached global cap)", chunkSummaries.size());
+                        }
+                    }
+                    break;
+                }
+
+                // Accumulate in chunk; if exceeds per-chunk size, flush
+                if (chunk.length() + nextLen > CHUNK_SIZE) {
+                    // Summarize current chunk
+                    String summary = ociGenAIService.summaryText(chunk.toString(), modelId, false);
+                    chunkSummaries.add(summary);
+                    if (chunkSummaries.size() % 5 == 0) {
+                        log.info("Large file summarization progress: {} chunks summarized", chunkSummaries.size());
+                    }
+                    chunk.setLength(0);
+
+                    // Respect chunk limit
+                    if (chunkSummaries.size() >= MAX_CHUNKS) {
+                        truncated = true;
+                        break;
+                    }
+                }
+
+                chunk.append(line).append("\n");
+                processedChars += nextLen;
+
+                // If we hit chunk limit exactly, flush and break
+                if (chunkSummaries.size() >= MAX_CHUNKS) {
+                    truncated = true;
+                    break;
+                }
+            }
+
+            // Flush tail if any and within limits
+            if (!truncated && chunk.length() > 0) {
+                String summary = ociGenAIService.summaryText(chunk.toString(), modelId, false);
+                chunkSummaries.add(summary);
+            }
+        }
+
+        if (chunkSummaries.isEmpty()) {
+            return "No content available to summarize.";
+        }
+        if (chunkSummaries.size() == 1 && !truncated) {
+            return chunkSummaries.get(0);
+        }
+
+        String combinedSummaries = String.join("\n\n", chunkSummaries);
+        String finalSummary = ociGenAIService.summaryText(combinedSummaries, modelId, false);
+        if (truncated) {
+            finalSummary = finalSummary + "\n\n[Note] Input truncated for summarization limits (processed ~" + processedChars + " characters).";
+        }
+        return finalSummary;
+    }
+
     @PostMapping("/api/upload")
     public Answer fileUploading(@RequestParam("file") MultipartFile multipartFile,
                                 @RequestHeader("conversationID") String conversationId,
@@ -74,9 +155,15 @@ public class PDFConvertorController {
             multipartFile.transferTo(file);
             log.info("File destination path: {}", file.getAbsolutePath());
             String convertedText;
+            boolean isLargeTextFile = false;
             switch (contentType) {
                 case "text/plain":
-                    convertedText = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
+                    if (multipartFile.getSize() > 50L * 1024 * 1024) {
+                        convertedText = summarizeLargeTextFile(file, summarizationModelId);
+                        isLargeTextFile = true;
+                    } else {
+                        convertedText = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
+                    }
                     break;
                 case "application/pdf":
                     convertedText = pdfConvertorService.convert(file.getAbsolutePath());
@@ -87,7 +174,7 @@ public class PDFConvertorController {
             }
             // Optional: also ingest into KB if requested
             boolean doIngest = ragIngestHeader != null && "true".equalsIgnoreCase(ragIngestHeader);
-            if (doIngest) {
+            if (doIngest && !(isLargeTextFile)) {
                 String effectiveTenant = (tenantId == null || tenantId.isBlank()) ? "default" : tenantId;
                 String mime = contentType != null ? contentType : "application/octet-stream";
                 String tagsJson = "[]";
@@ -117,7 +204,14 @@ public class PDFConvertorController {
             interaction.setModelId(summarizationModelId);
             interaction.setRequest(textEscaped);
             Interaction saved = interactionRepository.save(interaction);
-            String summaryText = ociGenAIService.summaryText(textEscaped, summarizationModelId, false);
+            String summaryText;
+            if (isLargeTextFile) {
+                // already produced via chunked summarization path
+                summaryText = convertedText;
+            } else {
+                // pass raw text to model to avoid token inflation from HTML escaping
+                summaryText = ociGenAIService.summaryText(convertedText, summarizationModelId, false);
+            }
             saved.setDatetimeResponse(new Date());
             saved.setResponse(summaryText);
             interactionRepository.save(saved);

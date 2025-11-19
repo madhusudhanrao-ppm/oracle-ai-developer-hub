@@ -8,3 +8,9 @@ databaseChangeLog:
   - include:
       file: db/migration/V3__kb_json_duality.sql
       relativeToChangelogFile: false
+  - include:
+      file: db/migration/V4__json_to_clob_safe.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/migration/V5__indexes_memory.sql
+      relativeToChangelogFile: false

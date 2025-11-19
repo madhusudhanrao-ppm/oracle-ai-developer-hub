@@ -2,6 +2,24 @@
 
 This app supports Retrieval-Augmented Generation over your own PDFs. You upload documents; the backend indexes them into Oracle AI Database via Liquibase-managed KB tables. Questions are answered by grounding prompts with retrieved content using embeddings stored as VECTOR(1024, FLOAT32).
 
+Cross-references: See DATABASE.md for KB schema, SERVICES_GUIDE.md for RagService/KbIngestService.
+
+## RAG Flow Diagram (Mermaid)
+
+```mermaid
+flowchart TD
+  A[Upload PDF] --> B[Extract Text - PDFConvertorService]
+  B --> C[Chunk & Embed - KbIngestService]
+  C --> D[Store in KB Tables - kb_documents/chunks/embeddings]
+  E[Ask Question] --> F[Embed Question - RagService]
+  F --> G[Retrieve Top-K - VECTOR_DISTANCE or Text Fallback]
+  G --> H[Compose Prompt with Context]
+  H --> I[Generate Answer - OCIGenAIService]
+  style A fill:#e1f5fe
+  style D fill:#e8f5e8
+  style I fill:#fff3e0
+```
+
 ## How it works (high level)
 
 - Upload: a PDF is uploaded to the backend.
@@ -41,16 +59,10 @@ Notes:
 - Use GET /api/genai/models to list supported models in your compartment and pick a modelId.
 - Vendor-aware parameters: for xAI Grok the backend omits presencePenalty, frequencyPenalty, and topK to avoid 400 errors; see MODELS.md for full guidance.
 
-## UI flow
-
-- Open the web UI.
-- Use the Upload panel to upload PDFs.
-- In Settings, enable "Use RAG" and set Tenant (default is "default").
-- In Chat, select a chat model and ask questions; the backend will use your KB to enhance prompts.
 
 ## Where data is stored
 
-- Liquibase migrations create core tables (conversations, messages, memory, telemetry) and KB tables for RAG, including embeddings stored as VECTOR(1024, FLOAT32) with an ANN index where supported.
+- Liquibase create core tables (conversations, messages, memory, telemetry) and KB tables for RAG, including embeddings stored as VECTOR(1024, FLOAT32) with an ANN index where supported.
 - See DATABASE.md for the exact schema overview and Liquibase details.
 
 ## Tips
@@ -94,15 +106,13 @@ Notes:
   - runs RAG pipeline and returns answer
 - `GET /api/kb/diag?tenantId=default[&docId=...]`
   - returns DB health, tenant/doc counts, and recent docs list
-- `GET /api/kb/diag/embed?text=hello[&modelId=...]`
-  - calls EmbedText and returns `{ ok, modelId, vectorLen }`
+- `GET /api/kb/diag/embed?text=... [&modelId=...]`
+  - calls OCI EmbedText and returns `{ ok, modelId, vectorLen }`
 - `GET /api/kb/diag/schema`
   - lists schema status for KB tables
 
-## Tenant and model configuration
+## Model configuration
 
-- Tenant
-  - Default tenant is `"default"`. Use the same tenant value for both ingestion and query in Settings/UI.
 - Models
   - Chat model (`genai.chat_model_id`) is independent from the embedding model (`genai.embed_model_id`).
   - The KB schema defines `VECTOR(1024, FLOAT32)`. Use a 1024-dimension embedding model (e.g., `cohere.embed-english-v3.0`) or update both the schema and the code paths if you choose a different dimension.
@@ -133,3 +143,7 @@ Notes:
   ```js
   localStorage.removeItem("debug")
   ```
+
+## Q&A
+Q: What happens if vector search fails? A: Falls back to text-based retrieval; see TROUBLESHOOTING.md for details.
+Q: How does RAG integrate with memory? A: Composes prompts with memory from DATABASE.md + retrieved KB context.

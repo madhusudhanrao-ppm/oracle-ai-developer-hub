@@ -1,5 +1,19 @@
 package dev.victormartin.oci.genai.backend.backend.service;
 
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import dev.victormartin.oci.genai.backend.backend.data.MemoryKv;
 import dev.victormartin.oci.genai.backend.backend.data.MemoryKvId;
 import dev.victormartin.oci.genai.backend.backend.data.MemoryKvRepository;
@@ -7,16 +21,8 @@ import dev.victormartin.oci.genai.backend.backend.data.MemoryLong;
 import dev.victormartin.oci.genai.backend.backend.data.MemoryLongRepository;
 import dev.victormartin.oci.genai.backend.backend.data.Message;
 import dev.victormartin.oci.genai.backend.backend.data.MessageRepository;
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.core.env.Environment;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 
 @Service
 public class MemoryService {
@@ -28,6 +34,14 @@ public class MemoryService {
   private final MemoryKvRepository memoryKvRepository;
   private final OCIGenAIService ociGenAIService;
   private final Environment env;
+  private final MeterRegistry meterRegistry;
+  private final ObjectMapper objectMapper;
+  private final Counter kvHitsCounter;
+  private final Counter kvMissesCounter;
+  private final Counter kvEvictionsCounter;
+
+  // Limits
+  private static final int MAX_VALUE_CHARS = 20_000;
 
   // Tunables
   private static final int MAX_MESSAGES_PER_UPDATE = 20;
@@ -37,12 +51,19 @@ public class MemoryService {
       MemoryLongRepository memoryLongRepository,
       MemoryKvRepository memoryKvRepository,
       OCIGenAIService ociGenAIService,
-      Environment env) {
+      Environment env,
+      MeterRegistry meterRegistry,
+      ObjectMapper objectMapper) {
     this.messageRepository = messageRepository;
     this.memoryLongRepository = memoryLongRepository;
     this.memoryKvRepository = memoryKvRepository;
     this.ociGenAIService = ociGenAIService;
     this.env = env;
+    this.meterRegistry = meterRegistry;
+    this.objectMapper = objectMapper;
+    this.kvHitsCounter = meterRegistry.counter("memory_kv_hits_total");
+    this.kvMissesCounter = meterRegistry.counter("memory_kv_misses_total");
+    this.kvEvictionsCounter = meterRegistry.counter("memory_kv_evictions_total");
   }
 
   /**
@@ -123,17 +144,42 @@ public class MemoryService {
     if (ttlSeconds != null && ttlSeconds > 0) {
       ttlTs = OffsetDateTime.now().plusSeconds(ttlSeconds);
     }
-    MemoryKv kv = new MemoryKv(conversationId, key, valueJson, ttlTs);
+    String toStore = (valueJson == null ? "{}" : valueJson.trim());
+    if (toStore.length() > MAX_VALUE_CHARS) {
+      log.warn("memory_kv value for key '{}' truncated from {} to {} chars", key, toStore.length(), MAX_VALUE_CHARS);
+      toStore = toStore.substring(0, MAX_VALUE_CHARS);
+    }
+    try {
+      // validate JSON payload (object/array); if invalid, keep as-is but warn
+      objectMapper.readTree(toStore);
+    } catch (Exception e) {
+      log.warn("memory_kv value for key '{}' is not valid JSON; storing as-is: {}", key, e.getMessage());
+    }
+    MemoryKv kv = new MemoryKv(conversationId, key, toStore, ttlTs);
     memoryKvRepository.save(kv);
   }
 
   @Transactional(readOnly = true)
   public Optional<String> getKv(String conversationId, String key) {
     Optional<MemoryKv> kvOpt = memoryKvRepository.findByConversationIdAndKey(conversationId, key);
-    if (kvOpt.isEmpty()) return Optional.empty();
+    if (kvOpt.isEmpty()) {
+      kvMissesCounter.increment();
+      return Optional.empty();
+    }
     MemoryKv kv = kvOpt.get();
     if (kv.getTtlTs() != null && kv.getTtlTs().isBefore(OffsetDateTime.now())) {
+      kvMissesCounter.increment();
       return Optional.empty();
+    }
+    kvHitsCounter.increment();
+    // Optional: extend TTL on read
+    boolean touchOnRead = env.getProperty("memory.kv.touchOnRead", Boolean.class, false);
+    if (touchOnRead && kv.getTtlTs() != null) {
+      long ext = env.getProperty("memory.kv.touchExtensionSeconds", Long.class, 600L);
+      try {
+        kv.setTtlTs(OffsetDateTime.now().plusSeconds(ext));
+        memoryKvRepository.save(kv);
+      } catch (Exception ignore) {}
     }
     return Optional.ofNullable(kv.getValueJson());
   }
@@ -150,6 +196,7 @@ public class MemoryService {
       int removed = memoryKvRepository.deleteByTtlTsBefore(OffsetDateTime.now());
       if (removed > 0) {
         log.info("memory_kv cleanup removed {} expired entries", removed);
+        try { kvEvictionsCounter.increment(removed); } catch (Exception ignore) {}
       }
     } catch (Exception e) {
       log.warn("memory_kv cleanup failed: {}", e.getMessage());

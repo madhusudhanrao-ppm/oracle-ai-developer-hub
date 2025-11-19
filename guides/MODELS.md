@@ -2,6 +2,20 @@
 
 This application calls OCI Generative AI Inference with vendor-aware request builders. It adapts parameters per vendor/model to prevent invalid-argument errors.
 
+Cross-references: See SERVICES_GUIDE.md for service usage, RAG.md for embedding models.
+
+## Vendor Diagram (Mermaid)
+
+```mermaid
+graph TD
+  A[OCI Generative AI] --> B[Cohere: CohereChatRequest]
+  A --> C[Meta: GenericChatRequest]
+  A --> D[xAI Grok: GenericChatRequest<br/>Omit penalties/topK]
+  style B fill:#e1f5fe
+  style C fill:#f3e5f5
+  style D fill:#fff3e0
+```
+
 ## Discovering available models
 
 Use the backend endpoint to list models in your compartment (filtered to chat-capable models):
@@ -92,13 +106,9 @@ curl -X POST http://localhost:8080/api/genai/rag \
 ## Embedding models and dimensions
 
 - Embedding model is configured via `genai.embed_model_id` and is independent from the chat model.
-- The KB schema uses `VECTOR(1024, FLOAT32)`. Prefer a 1024-dimension embedding model (e.g., `cohere.embed-english-v3.0`). If you choose a different dimension, update the Liquibase migration and the insertion paths accordingly.
+- The KB schema uses `VECTOR(1024, FLOAT32)`. Prefer a 1024-dimension embedding model (e.g., `cohere.embed-english-v3.0`) or update both the schema and the code paths if you choose a different dimension.
 - Validate embedding path: `GET /api/kb/diag/embed?text=test` → expect `ok: true`, `vectorLen ~ 1024`
 - Check schema status: `GET /api/kb/diag/schema` → ensure KB tables and indexes exist
-
-## Summarization model
-
-- File summaries during upload use `genai.summarization_model_id`. This does not affect chat or embedding models.
 
 ## References
 
@@ -107,3 +117,7 @@ curl -X POST http://localhost:8080/api/genai/rag \
 - Kubernetes/OKE deployment: see `K8S.md`
 - Recent changes and notes: see `CHANGES.md`
 - Overview and architecture: see `README.md`
+
+## Q&A
+Q: Why can't I use topK with Grok? A: It's unsupported and causes 400 errors; backend omits it automatically.
+Q: How do I choose an embedding model? A: List with /api/genai/models, filter "EMBED" capability, ensure 1024-dim matches schema (DATABASE.md).

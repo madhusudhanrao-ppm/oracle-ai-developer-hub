@@ -14,11 +14,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.victormartin.oci.genai.backend.backend.data.Conversation;
+import dev.victormartin.oci.genai.backend.backend.data.ConversationRepository;
 import dev.victormartin.oci.genai.backend.backend.data.MemoryLong;
 import dev.victormartin.oci.genai.backend.backend.data.MemoryLongRepository;
 import dev.victormartin.oci.genai.backend.backend.service.MemoryService;
-import dev.victormartin.oci.genai.backend.backend.data.Conversation;
-import dev.victormartin.oci.genai.backend.backend.data.ConversationRepository;
 
 @RestController
 public class MemoryController {
@@ -57,8 +57,12 @@ public class MemoryController {
   public ResponseEntity<String> getKv(@PathVariable("conversationId") String conversationId,
                                       @PathVariable("key") String key) {
     Optional<String> val = memoryService.getKv(conversationId, key);
-    return val.map(v -> ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(v))
-              .orElseGet(() -> ResponseEntity.notFound().build());
+    if (val.isPresent()) {
+      return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(val.get());
+    } else {
+      // Return empty JSON object for missing keys to simplify frontend logic
+      return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body("{}");
+    }
   }
 
   @DeleteMapping("/api/memory/kv/{conversationId}/{key}")

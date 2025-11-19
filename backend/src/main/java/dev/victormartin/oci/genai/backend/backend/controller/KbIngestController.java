@@ -2,17 +2,22 @@ package dev.victormartin.oci.genai.backend.backend.controller;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import dev.victormartin.oci.genai.backend.backend.dto.RagTextIngestRequest;
 import dev.victormartin.oci.genai.backend.backend.service.KbIngestService;
 import dev.victormartin.oci.genai.backend.backend.service.PDFConvertorService;
+import jakarta.validation.Valid;
 
 @RestController
 public class KbIngestController {
@@ -85,6 +90,52 @@ public class KbIngestController {
                 embeddingModelId
         );
         log.info("KB ingest completed: docId={} chunks={} embeddings={}",
+                summary.docId(), summary.chunkCount(), summary.embedCount());
+        return summary;
+    }
+
+    /**
+     * Ingest raw text directly (JSON body) into the KB: documents, chunks, and embeddings.
+     * POST /api/kb/ingest-text
+     */
+    @PostMapping(value = "/api/kb/ingest-text", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public KbIngestService.IngestSummary ingestText(@Valid @RequestBody RagTextIngestRequest req) {
+        String tenantId = (req.tenantId() == null || req.tenantId().isBlank()) ? "default" : req.tenantId();
+        String title = (req.title() == null || req.title().isBlank()) ? "text" : req.title();
+        String uri = (req.uri() == null || req.uri().isBlank()) ? null : req.uri();
+        String mime = (req.mime() == null || req.mime().isBlank()) ? "text/plain" : req.mime();
+        String embeddingModelId = (req.embeddingModelId() == null || req.embeddingModelId().isBlank()) ? null : req.embeddingModelId();
+
+        // Build tags JSON array safely from list
+        String tagsJson = "[]";
+        List<String> tags = req.tags();
+        if (tags != null && !tags.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append('[');
+            boolean first = true;
+            for (String t : tags) {
+                if (t == null) continue;
+                String cleaned = t.replace("\\", "\\\\").replace("\"", "\\\""); // minimal escape
+                if (!first) sb.append(',');
+                sb.append('"').append(cleaned).append('"');
+                first = false;
+            }
+            sb.append(']');
+            tagsJson = sb.toString();
+        }
+
+        // Delegate to service
+        KbIngestService.IngestSummary summary = kbIngestService.ingestText(
+                tenantId,
+                req.docId(),
+                title,
+                uri,
+                mime,
+                tagsJson,
+                req.text(),
+                embeddingModelId
+        );
+        log.info("KB text ingest completed: docId={} chunks={} embeddings={}",
                 summary.docId(), summary.chunkCount(), summary.embedCount());
         return summary;
     }

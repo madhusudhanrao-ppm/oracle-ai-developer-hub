@@ -17,8 +17,17 @@ type Props = {
 };
 
 const enhanceCitations = (text: string) => {
-  return text.replace(/\[(\d+)\]/g, (match, num) => {
-    return `<a href="#" onclick="alert('Citation ${num}: Source details not available yet.'); return false;" style="color: blue; text-decoration: underline;">${match}</a>`;
+  return text.replace(/\[(\d+)\]/g, (_match, num) => {
+    return [
+      `<span`,
+      `  style="cursor:pointer; color:inherit; text-decoration:none;"`,
+      `  role="button" aria-expanded="false"`,
+      `  onclick="var n=this.nextElementSibling; var exp=this.getAttribute('aria-expanded')==='true'; n.style.display = exp ? 'none' : 'inline'; this.setAttribute('aria-expanded', (!exp).toString());"`,
+      `>[${num}]</span>`,
+      `<span`,
+      `  style="display:none; color:#6b7280; font-size:0.85em; margin-left:4px;"`,
+      `>Source details not available yet.</span>`
+    ].join('');
   });
 };
 

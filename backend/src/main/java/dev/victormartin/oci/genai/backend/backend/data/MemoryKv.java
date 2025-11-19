@@ -21,8 +21,8 @@ public class MemoryKv {
   @Column(name = "KEY", length = 128, nullable = false)
   private String key;
 
-  // Store as text; DB column is JSON. Using CLOB avoids driver-specific JSON mapping issues.
-  @Column(name = "VALUE_JSON", columnDefinition = "CLOB")
+  // Store as text; DB column is JSON. Avoid forcing columnDefinition to prevent Hibernate DDL attempts.
+  @Column(name = "VALUE_JSON")
   private String valueJson;
 
   @Column(name = "TTL_TS")
