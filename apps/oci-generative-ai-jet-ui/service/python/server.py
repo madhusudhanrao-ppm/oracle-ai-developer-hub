@@ -27,7 +27,6 @@ generative_ai_inference_client = oci.generative_ai_inference.GenerativeAiInferen
 
 @throttle(rate_limit=15, period=65.0)
 async def generate_ai_response(prompts):
-    prompt = ""
     llm_inference_request = oci.generative_ai_inference.models.CohereLlmInferenceRequest()
     llm_inference_request.prompt = prompts
     llm_inference_request.max_tokens = 1000
