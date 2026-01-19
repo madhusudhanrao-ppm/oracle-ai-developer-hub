@@ -20,17 +20,31 @@ except ImportError:
     print("Error: 'rich' and 'questionary' libraries are required. Please install them with: pip install rich questionary")
     sys.exit(1)
 
-# ... (Previous imports and init remain)
+console = Console()
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def run_command(cmd, desc="Running..."):
+    with console.status(f"[bold green]{desc}...[/bold green]"):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                console.print(f"[green]Done![/green]")
+                if result.stdout:
+                    console.print(result.stdout)
+            else:
+                console.print(f"[red]Error (code {result.returncode}):[/red]")
+                console.print(result.stderr)
+        except Exception as e:
+            console.print(f"[red]Failed to execute command: {e}[/red]")
 
 def print_header():
     clear_screen()
-    title = """
-    ╔════════════════════════════════════════════════════════════════╗
-    ║                 AGENTIC RAG SYSTEM CLI                         ║
-    ║         Oracle AI Vector Search + Ollama (Gemma 3)             ║
-    ╚════════════════════════════════════════════════════════════════╝
-    """
-    console.print(Panel(Textwrap(title, justify="center"), style="bold cyan", subtitle="Control Plane"))
+    console.print(Panel.fit(
+        "[bold cyan]AGENTIC RAG SYSTEM CLI[/bold cyan]\n[dim]Oracle AI Vector Search + Ollama (Gemma 3)[/dim]",
+        border_style="cyan"
+    ))
     console.print(f"[dim]Working Directory: {os.getcwd()}[/dim]\n")
 
 def menu_process_pdfs():

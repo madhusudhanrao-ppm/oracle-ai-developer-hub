@@ -133,7 +133,23 @@ The easiest way to use the system is through the interactive CLI:
 python agent_cli.py
 ```
 
-This will launch a menu-driven interface where you can:
+**Interactive Experience:**
+```text
+╭──────────────────────────────────────────────╮
+│ AGENTIC RAG SYSTEM CLI                       │
+│ Oracle AI Vector Search + Ollama (Gemma 3)   │
+╰──────────────────────────────────────────────╯
+
+? Select a Task:
+  Process PDFs
+  Process Websites
+  Manage Vector Store
+  Test Oracle DB
+  Chat with Agent (RAG)
+  Exit
+```
+
+**Features:**
 1. **Process PDFs**: Ingest documents from files, directories, or URLs.
 2. **Process Websites**: Crawl and ingest web content.
 3. **Manage Vector Store**: Add processed chunks to the database.
