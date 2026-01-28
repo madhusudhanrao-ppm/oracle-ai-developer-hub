@@ -30,7 +30,7 @@ Estimated Time: 20 mins.
 
 This lab assumes you have:
 * Oracle Cloud account with privileges to create and manage Oracle Autonomous AI Database
-* Oracle Autonomous AI Database instance (23ai or 26ai) deployed 
+* Oracle Autonomous AI Database instance 26ai deployed 
 * MongoDB driver installed (Python, Node.js, SQL Worksheet or Google Colab Notebook)
   
 Download and Run [Google Colab Notebook](mongodb_create_customers.ipynb). Follow the instructions from Task 1 & Task 6

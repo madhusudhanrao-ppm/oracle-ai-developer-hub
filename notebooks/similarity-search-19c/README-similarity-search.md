@@ -116,7 +116,7 @@ This lab assumes you have:
 
 Download and securely store your Oracle Autonomous Database wallet, which contains the credentials needed to connect from Google Colab.
 
-1. In the OCI Console, navigate to your Autonomous Database instance. Note that you can use Oracle Autonomous AI Database 26ai or 23ai for this lab.
+1. In the OCI Console, navigate to your Autonomous Database instance. Note that you can use Oracle Autonomous AI Database 26ai for this lab.
 
     ![DB Conn](images/db-version.png)
 
